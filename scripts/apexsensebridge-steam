@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-"""Start a native bridge, wait for readiness, then run Steam's command unchanged."""
+"""Run Steam's game command immediately with a native bridge in the background."""
 import argparse
-import json
-import math
 import os
 from pathlib import Path
 import re
@@ -10,30 +8,27 @@ import shutil
 import signal
 import subprocess
 import sys
-import tempfile
 import time
 
 
 def options(argv):
     parser = argparse.ArgumentParser(
         description=__doc__,
-        usage="%(prog)s [--startup-timeout SECONDS] [bridge options] -- %%command%%",
+        usage="%(prog)s [bridge options] -- %%command%%",
     )
     parser.add_argument("--bridge", help="path to ApexSenseBridge (normally found beside this launcher)")
-    parser.add_argument("--startup-timeout", type=float, default=0,
-                        help="controller wait limit; 0 waits until connected (default)")
+    # Accept old launch options without reintroducing a controller-ready gate.
+    parser.add_argument("--startup-timeout", help=argparse.SUPPRESS)
     parser.add_argument("--log", help="bridge log path (default: XDG state directory)")
     if "--" not in argv:
         parser.parse_args(argv)  # Provide the usual --help response.
         parser.error("missing -- and the game command; in Steam use -- %command%")
     separator = argv.index("--")
     args, bridge_args = parser.parse_known_args(argv[:separator])
-    if not math.isfinite(args.startup_timeout) or args.startup_timeout < 0:
-        parser.error("--startup-timeout must be a finite number of seconds >= 0")
     if not argv[separator + 1:] or not argv[separator + 1]:
         parser.error("missing game command after --")
     for arg in bridge_args:
-        if arg.split("=", 1)[0] in {"--telemetry-json", "--seconds", "--once", "--version", "--help", "-h"}:
+        if arg.split("=", 1)[0] in {"--seconds", "--once", "--version", "--help", "-h"}:
             parser.error(f"{arg} cannot be used with this launcher")
     return args, bridge_args, argv[separator + 1:]
 
@@ -66,11 +61,9 @@ def stop_bridge(bridge):
 
 def main(argv):
     args, bridge_args, command = options(argv)
-    executable = bridge_path(args.bridge)
     app_id = re.sub(r"[^a-zA-Z0-9_.-]", "_", os.environ.get("SteamAppId", "game"))[:80] or "game"
     state = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state")
     log_path = Path(args.log).expanduser() if args.log else state / "apexsensebridge" / f"steam-{app_id}.log"
-    log_path.parent.mkdir(parents=True, exist_ok=True)
     interrupted = 0
 
     def stopping(number, _frame):
@@ -79,60 +72,48 @@ def main(argv):
 
     for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
         signal.signal(number, stopping)
-    bridge = game = temporary = None
+    bridge = game = None
     try:
-        temporary = tempfile.TemporaryDirectory(prefix="apexsensebridge-steam-")
-        with log_path.open("w") as log:
-            status_path = Path(temporary.name) / "status.json"
-            # Steam's runtime/overlay libraries are for the game. The native
-            # bridge uses host libraries; the game retains its original env.
-            bridge_env = os.environ.copy()
-            for name in ("LD_LIBRARY_PATH", "LD_PRELOAD"):
-                bridge_env.pop(name, None)
-            bridge = subprocess.Popen([executable, "bridge", *bridge_args,
-                                       "--telemetry-json", str(status_path)],
-                                      env=bridge_env, stdout=log, stderr=subprocess.STDOUT)
-            deadline = time.monotonic() + args.startup_timeout if args.startup_timeout else math.inf
-            while not interrupted:
-                if bridge.poll() is not None:
-                    raise RuntimeError(f"Bridge exited before it was ready (status {bridge.returncode})")
-                try:
-                    if json.loads(status_path.read_text()).get("phase") == "running":
-                        break
-                except (OSError, ValueError):
-                    pass
-                if time.monotonic() >= deadline:
-                    raise RuntimeError("Timed out waiting for a controller")
-                time.sleep(0.05)
-            if interrupted:
-                return 128 + interrupted
-            # No shell/eval: quoted paths and Steam/Proton argument boundaries
-            # are preserved. A process group lets stop signals reach wrappers.
-            game = subprocess.Popen(command, start_new_session=True)
-            bridge_failure_reported = False
-            while game.poll() is None and not interrupted:
-                if bridge.poll() is not None and not bridge_failure_reported:
-                    print(f"Bridge stopped; see {log_path}", file=sys.stderr)
-                    bridge_failure_reported = True
-                time.sleep(0.05)
-            if interrupted:
-                try:
-                    os.killpg(game.pid, interrupted)
-                    game.wait(timeout=10)
-                except ProcessLookupError:
-                    pass
-                except subprocess.TimeoutExpired:
-                    os.killpg(game.pid, signal.SIGKILL)
-                    game.wait()
-                return 128 + interrupted
-            return game.returncode if game.returncode >= 0 else 128 - game.returncode
+        try:
+            executable = bridge_path(args.bridge)
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with log_path.open("w") as log:
+                # Steam's runtime/overlay libraries are for the game. The native
+                # bridge uses host libraries; the game retains its original env.
+                bridge_env = os.environ.copy()
+                for name in ("LD_LIBRARY_PATH", "LD_PRELOAD"):
+                    bridge_env.pop(name, None)
+                bridge = subprocess.Popen([executable, "bridge", *bridge_args],
+                                          env=bridge_env, stdout=log, stderr=subprocess.STDOUT)
+        except (OSError, RuntimeError) as error:
+            print(f"ApexSenseBridge could not start: {error}. Starting the game anyway.", file=sys.stderr)
+        if interrupted:
+            return 128 + interrupted
+        # No shell/eval: quoted paths and Steam/Proton argument boundaries
+        # are preserved. A process group lets stop signals reach wrappers.
+        game = subprocess.Popen(command, start_new_session=True)
+        bridge_failure_reported = False
+        while game.poll() is None and not interrupted:
+            if bridge is not None and bridge.poll() is not None and not bridge_failure_reported:
+                print(f"Bridge stopped (status {bridge.returncode}); game continues. See {log_path}", file=sys.stderr)
+                bridge_failure_reported = True
+            time.sleep(0.05)
+        if interrupted:
+            try:
+                os.killpg(game.pid, interrupted)
+                game.wait(timeout=10)
+            except ProcessLookupError:
+                pass
+            except subprocess.TimeoutExpired:
+                os.killpg(game.pid, signal.SIGKILL)
+                game.wait()
+            return 128 + interrupted
+        return game.returncode if game.returncode >= 0 else 128 - game.returncode
     except (OSError, RuntimeError) as error:
         print(f"ApexSenseBridge Steam launcher: {error}. See {log_path}", file=sys.stderr)
         return 1
     finally:
         stop_bridge(bridge)
-        if temporary is not None:
-            temporary.cleanup()
 
 
 if __name__ == "__main__":

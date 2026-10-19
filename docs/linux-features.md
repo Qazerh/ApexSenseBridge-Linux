@@ -134,4 +134,5 @@ restoration after a lost ACK, battery updates, gain clipping, CLI contracts,
 JSON snapshots, rapid input edges, feedback fairness, a blocked diagnostic
 worker and the existing busy RGB/trigger/rumble input tests. Reconnect tests
 exercise stable UHID handles, neutral controls, feature replies while absent,
-settings checkpoints across repeated failures and Steam launcher lifecycle. Added Apex 4/6 model paths still require physical/game acceptance testing.
+settings checkpoints across repeated failures and immediate Steam launch without a controller, bridge startup failures and
+launcher cleanup. Added Apex 4/6 model paths still require physical/game acceptance testing.

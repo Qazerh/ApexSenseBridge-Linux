@@ -264,10 +264,12 @@ and permission setup. Native Steam launch options after installation:
 /usr/local/bin/apexsensebridge-steam -- %command%
 ```
 
-Keep Steam Input disabled. The launcher waits for bridge readiness and owns its
-bridge process until the game command exits. It does not attach to or terminate
-a separately running bridge. See the [Steam examples](../README.md#start-automatically-with-a-steam-game)
-for settings, logging, timeouts and custom paths.
+Keep Steam Input disabled. The launcher starts the game immediately while its
+bridge scans for a controller in the background. Controller absence or bridge
+startup failure does not block the game. It owns its bridge process until the
+game command exits. It does not attach to or terminate a separately running
+bridge. See the [Steam examples](../README.md#start-automatically-with-a-steam-game)
+for settings, logging and custom paths.
 
 Default bridge mode scans every 500 ms if no controller is present. On physical
 input failure it sends neutral virtual input, answers UHID requests while waiting,

@@ -151,24 +151,25 @@ Launch Options** and enter:
 ```
 
 Also set **Properties → Controller → Disable Steam Input**, and enable native
-adaptive triggers in the game when available. The launcher starts the bridge,
-waits until the virtual DualSense is ready, runs Steam's game/Proton command,
-and stops the bridge with normal settings restoration when that command exits.
-If no controller is present, Steam stays in its launching state until you connect
-or wake one. Steam's Stop button cancels the wait. Close any manually running
-bridge before using this launcher.
+adaptive triggers in the game when available. The launcher starts Steam's
+game/Proton command immediately and runs the bridge in the background. It does not wait for a controller or bridge readiness. The
+bridge keeps scanning and connects when you turn the controller on. Even a
+bridge startup failure does not prevent the game from starting. When the game
+command exits, the launcher stops its bridge with normal settings restoration.
+Steam's Stop button stops both. Close any manually running bridge before using
+this launcher. Games must support controller hotplug to pick up a controller
+that appears after they start.
 
 Bridge settings go before `--`. Existing game wrappers go after it:
 
 ```text
 /usr/local/bin/apexsensebridge-steam --touchpad-profile warframe -- %command%
 /usr/local/bin/apexsensebridge-steam --strength 75 -- gamemoderun %command%
-/usr/local/bin/apexsensebridge-steam --startup-timeout 30 -- %command%
 ```
 
-The optional startup timeout aborts without starting the game if the controller
-is not ready in time; the default waits indefinitely. Use an absolute path for a
-custom installation, for example `/home/you/.local/bin/apexsensebridge-steam`.
+Old `--startup-timeout` options are accepted but ignored; the launcher always
+starts the game immediately. Use an absolute path for a custom installation,
+for example `/home/you/.local/bin/apexsensebridge-steam`.
 Quote paths containing spaces. The bridge log is overwritten each run at
 `~/.local/state/apexsensebridge/steam-APPID.log` (or under `$XDG_STATE_HOME`);
 `--log /absolute/path.log` selects a different file. The launcher keeps Steam's
