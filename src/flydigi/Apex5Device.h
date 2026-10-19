@@ -67,7 +67,7 @@ public:
     [[nodiscard]] const std::optional<Apex5Identity>& identity() const noexcept;
 
     bool verifyIdentity(std::string& error,
-                        const std::function<bool()>& shouldStop = {});
+                        const std::function<bool()>& shouldStop = {}, bool allowStandardApex6 = false);
     [[nodiscard]] bool identityUnanswered() const noexcept { return identityUnanswered_; }
 
     bool setTrigger(const TriggerEffect& effect, std::string& error);
@@ -115,7 +115,9 @@ public:
     // The Apex 4 receiver needs paced vendor writes. The bridge queues the
     // newest value per output so its feedback callback never blocks and stale
     // effects are coalesced instead of replayed later.
-    bool startAsyncWrites(std::string& error);
+    // A caller may also queue wired feedback to keep blocking writes off its input loop.
+    bool startAsyncWrites(std::string& error,
+                          std::optional<AsyncWritePolicy> policyOverride = std::nullopt);
     void stopAsyncWrites() noexcept;
     bool queueTriggerRaw(const ForceTriggerCommand& command, std::string& error);
     bool queueRumble(std::uint8_t lowFrequencyMotor,

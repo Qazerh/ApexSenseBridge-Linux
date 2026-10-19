@@ -1,12 +1,14 @@
 #include "dualsense/LightbarBridge.h"
 
 #include <algorithm>
-#include <cmath>
 
 namespace asb::dualsense {
 
-LightbarBridge::LightbarBridge(flydigi::Apex5Device& device, std::uint8_t slot)
-    : device_(device), slot_(slot) {
+LightbarBridge::LightbarBridge(flydigi::Apex5Device& device, std::uint8_t slot,
+                               LightbarBridgeOptions options)
+    : device_(device), slot_(slot), options_(options) {
+    options_.minimumInterval = std::clamp(options_.minimumInterval,
+                                         std::chrono::milliseconds(1), std::chrono::milliseconds(1000));
     std::string error;
     if (!device_.readRgbConfig(slot_, backupConfig_, error)) {
         recordFailure(std::move(error));
@@ -58,10 +60,7 @@ void LightbarBridge::handle(const DualSenseFeedback& feedback) {
     {
         std::lock_guard lock(mutex_);
         if (hasTarget_) {
-            const int dr = std::abs(static_cast<int>(r) - static_cast<int>(targetRed_));
-            const int dg = std::abs(static_cast<int>(g) - static_cast<int>(targetGreen_));
-            const int db = std::abs(static_cast<int>(b) - static_cast<int>(targetBlue_));
-            if (dr < 3 && dg < 3 && db < 3) {
+            if (r == targetRed_ && g == targetGreen_ && b == targetBlue_) {
                 deduplicated_.fetch_add(1, std::memory_order_relaxed);
                 return;
             }
@@ -76,7 +75,7 @@ void LightbarBridge::handle(const DualSenseFeedback& feedback) {
 
 void LightbarBridge::workerLoop() noexcept {
     using namespace std::chrono_literals;
-    constexpr auto kMinInterval = 80ms;
+    const auto kMinInterval = options_.minimumInterval;
     auto lastSend = std::chrono::steady_clock::now() - kMinInterval;
 
     while (running_.load(std::memory_order_relaxed)) {
@@ -118,6 +117,7 @@ void LightbarBridge::workerLoop() noexcept {
 
         if (shouldWrite) {
             std::string err;
+            const auto sentAt = std::chrono::steady_clock::now();
             if (writeWorkingColor(r, g, b, err)) {
                 std::lock_guard lock(mutex_);
                 writtenRed_ = r;
@@ -125,13 +125,18 @@ void LightbarBridge::workerLoop() noexcept {
                 writtenBlue_ = b;
                 hasWritten_ = true;
                 writes_.fetch_add(1, std::memory_order_relaxed);
-                lastSend = std::chrono::steady_clock::now();
+                // Live colors are paced from the beginning of a transfer, so
+                // USB round-trip time does not add another full frame delay.
+                lastSend = options_.singleFrame ? sentAt : std::chrono::steady_clock::now();
             } else {
                 recordFailure(std::move(err));
                 running_.store(false, std::memory_order_relaxed);
                 break;
             }
         }
+        // Let queued trigger/rumble/metadata writes acquire the command channel
+        // even when USB latency exceeds the live RGB frame interval.
+        if (options_.singleFrame) std::this_thread::sleep_for(1ms);
     }
 }
 
@@ -141,21 +146,24 @@ bool LightbarBridge::writeWorkingColor(
     auto loaded = workingConfig_;
     loaded[2] = 1;
     loaded[3] = 0;
-    loaded[4] = 9;
+    loaded[4] = options_.singleFrame ? 0 : 9;
     loaded[5] = 1;
     loaded[6] = 100;
     loaded[7] = static_cast<std::uint8_t>(flydigi::kApex5LedCount);
-    loaded[8] = 4;
+    loaded[8] = options_.singleFrame ? 5 : 4;
     loaded[9] = 0;
     std::fill(loaded.begin() + 10, loaded.begin() + kHeaderSize,
               std::uint8_t{0xFF});
-    for (std::size_t offset = kHeaderSize;
-         offset + 2 < loaded.size(); offset += 3) {
+    const auto end = options_.singleFrame ? kHeaderSize + flydigi::kApex5LedCount * 3 : loaded.size();
+    for (std::size_t offset = kHeaderSize; offset + 2 < end; offset += 3) {
         loaded[offset] = r;
         loaded[offset + 1] = g;
         loaded[offset + 2] = b;
     }
-    if (!device_.writeRgbConfig(slot_, loaded, error)) {
+    // Latch the displayed frame, update only the header and active frame, then
+    // release it below. Other animation frames remain backed up and untouched.
+    if (!device_.writeRgbConfigRange(slot_, 0,
+            options_.singleFrame ? 3 : flydigi::kRgbPacketCount, loaded, error)) {
         return false;
     }
     workingConfig_ = loaded;
@@ -171,9 +179,11 @@ bool LightbarBridge::writeWorkingColor(
 
 void LightbarBridge::recordFailure(std::string error) noexcept {
     writeFailures_.fetch_add(1, std::memory_order_relaxed);
+    {
+        std::lock_guard lock(errorMutex_);
+        error_ = std::move(error);
+    }
     failed_.store(true, std::memory_order_relaxed);
-    std::lock_guard lock(errorMutex_);
-    error_ = std::move(error);
 }
 
 bool LightbarBridge::failed() const noexcept {

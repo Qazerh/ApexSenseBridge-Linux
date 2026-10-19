@@ -62,8 +62,30 @@ if(WIN32)
     )
     target_link_libraries(asb_core PRIVATE setupapi hid cfgmgr32 ws2_32 xinput ole32)
 else()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_sources(asb_core PRIVATE
+            src/platform/linux/LinuxHidTransport.cpp
+            src/platform/linux/InputStream.cpp
+            src/platform/linux/InputPump.cpp
+            src/platform/linux/EvdevInput.cpp
+            src/platform/linux/EvdevRumble.cpp
+            src/platform/linux/FeedbackBridge.cpp
+            src/platform/linux/AsyncDiagnostics.cpp
+            src/platform/linux/Options.cpp
+            src/platform/linux/RuntimeSupport.cpp
+            src/cli/JsonSupport.cpp
+            src/platform/linux/HidReportDescriptor.cpp
+            src/platform/linux/DualSenseDescriptor.cpp
+            src/platform/linux/DualSenseReports.cpp
+            src/platform/linux/UhidDevice.cpp
+            src/platform/linux/EvdevGrab.cpp
+        )
+        find_package(Threads REQUIRED)
+        target_link_libraries(asb_core PUBLIC Threads::Threads)
+    else()
+        target_sources(asb_core PRIVATE src/platform/UnsupportedHidTransport.cpp)
+    endif()
     target_sources(asb_core PRIVATE
-        src/platform/UnsupportedHidTransport.cpp
         src/platform/UnsupportedAudioEndpointProtection.cpp
         src/platform/UnsupportedVirtualDualSense.cpp
         src/platform/UnsupportedXInputGamepad.cpp
@@ -77,19 +99,27 @@ if(WIN32)
     set(ASB_RC_FILE src/platform/windows/ApexSenseBridge.rc)
 endif()
 
-add_executable(ApexSenseBridge
-    src/main.cpp
-    src/cli/BridgeOptions.cpp
-    src/cli/BridgeRuntimeSupport.cpp
-    src/cli/BridgeTelemetry.cpp
-    src/cli/CliApplication.cpp
-    src/cli/CommandSupport.cpp
-    src/cli/JsonSupport.cpp
-    src/cli/DeviceCommands.cpp
-    src/cli/VirtualDualSenseCommand.cpp
-    src/cli/BridgeCommand.cpp
-    ${ASB_RC_FILE}
-)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(ApexSenseBridge src/platform/linux/LinuxMain.cpp)
+    install(TARGETS ApexSenseBridge RUNTIME DESTINATION bin)
+    install(FILES packaging/linux/70-apexsensebridge.rules DESTINATION share/ApexSenseBridge)
+    install(FILES LICENSE THIRD_PARTY_NOTICES.md packaging/linux/VIIPER-LICENSE.txt
+            DESTINATION share/ApexSenseBridge/licenses)
+else()
+    add_executable(ApexSenseBridge
+        src/main.cpp
+        src/cli/BridgeOptions.cpp
+        src/cli/BridgeRuntimeSupport.cpp
+        src/cli/BridgeTelemetry.cpp
+        src/cli/CliApplication.cpp
+        src/cli/CommandSupport.cpp
+        src/cli/JsonSupport.cpp
+        src/cli/DeviceCommands.cpp
+        src/cli/VirtualDualSenseCommand.cpp
+        src/cli/BridgeCommand.cpp
+        ${ASB_RC_FILE}
+    )
+endif()
 target_link_libraries(ApexSenseBridge PRIVATE asb_core)
 if(WIN32)
     target_link_libraries(ApexSenseBridge PRIVATE psapi)
@@ -150,6 +180,34 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        add_executable(ApexSenseBridgeLinuxTests tests/test_linux_bridge.cpp)
+        target_link_libraries(ApexSenseBridgeLinuxTests PRIVATE asb_core)
+        target_compile_options(ApexSenseBridgeLinuxTests PRIVATE -Wall -Wextra -Wpedantic)
+        add_test(NAME linux_hid_uhid_bridge COMMAND ApexSenseBridgeLinuxTests)
+        add_executable(ApexSenseBridgeLinuxFeatureTests tests/test_linux_features.cpp)
+        target_link_libraries(ApexSenseBridgeLinuxFeatureTests PRIVATE asb_core)
+        target_compile_options(ApexSenseBridgeLinuxFeatureTests PRIVATE -Wall -Wextra -Wpedantic)
+        add_test(NAME linux_features COMMAND ApexSenseBridgeLinuxFeatureTests)
+        add_executable(ApexSenseBridgeLinuxLatencyTests tests/test_linux_latency.cpp)
+        target_link_libraries(ApexSenseBridgeLinuxLatencyTests PRIVATE asb_core)
+        target_compile_options(ApexSenseBridgeLinuxLatencyTests PRIVATE -Wall -Wextra -Wpedantic)
+        add_test(NAME linux_input_latency COMMAND ApexSenseBridgeLinuxLatencyTests)
+        add_executable(ApexSenseBridgeLinuxModelTests tests/test_linux_models.cpp)
+        target_link_libraries(ApexSenseBridgeLinuxModelTests PRIVATE asb_core)
+        target_compile_options(ApexSenseBridgeLinuxModelTests PRIVATE -Wall -Wextra -Wpedantic)
+        add_test(NAME linux_controller_models COMMAND ApexSenseBridgeLinuxModelTests)
+        find_package(Python3 COMPONENTS Interpreter QUIET)
+        if(Python3_Interpreter_FOUND)
+            add_test(NAME linux_cli_contract COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_linux_cli.py $<TARGET_FILE:ApexSenseBridge>)
+        endif()
+        add_test(NAME linux_cli_help COMMAND ApexSenseBridge --help)
+        add_test(NAME linux_cli_invalid_strength COMMAND ApexSenseBridge bridge --strength 101)
+        set_tests_properties(linux_cli_invalid_strength PROPERTIES WILL_FAIL TRUE)
+        add_test(NAME linux_cli_invalid_duration COMMAND ApexSenseBridge test-triggers --seconds -1)
+        set_tests_properties(linux_cli_invalid_duration PROPERTIES WILL_FAIL TRUE)
+    endif()
     add_executable(ApexSenseBridgeTriggerPositionMarkersTests tests/test_trigger_position_markers.cpp)
     target_include_directories(ApexSenseBridgeTriggerPositionMarkersTests PRIVATE src)
     add_test(NAME trigger_position_markers COMMAND ApexSenseBridgeTriggerPositionMarkersTests)

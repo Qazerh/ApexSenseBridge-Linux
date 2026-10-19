@@ -1,0 +1,11 @@
+# Active desktop session access; install before 73-seat-late.rules runs uaccess.
+# Flydigi V2/V3 family (Apex 5/6 model and capabilities verified at runtime).
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="37d7", ATTRS{idProduct}=="2???", TAG+="uaccess"
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="37d7", ATTRS{idProduct}=="2???", TAG+="uaccess"
+# Apex 4 V1 interface and its gamepad nodes.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="04b4", ATTRS{idProduct}=="2412", TAG+="uaccess"
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="04b4", ATTRS{idProduct}=="2412", TAG+="uaccess"
+# UHID is the Linux virtual HID interface.
+KERNEL=="uhid", SUBSYSTEM=="misc", TAG+="uaccess", OPTIONS+="static_node=uhid"
+# Only this bridge's virtual DualSense, not every Sony HID device.
+SUBSYSTEM=="hidraw", KERNELS=="0003:054C:0CE6.*", ATTRS{uevent}=="*HID_PHYS=apexsensebridge/input0*", TAG+="uaccess"

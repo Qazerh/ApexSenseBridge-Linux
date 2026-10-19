@@ -1,0 +1,46 @@
+{
+  "build": "linux-v7",
+  "recorded_at_utc": "2026-10-19T05:40:01.271625+00:00",
+  "configuration": "CMake Release, x86-64 Linux",
+  "measurement": "Local SOCK_SEQPACKET injection timestamp to receipt of the UHID input event; actual InputPump/InputPipeline/UhidDevice implementation",
+  "physical_hardware_tested": false,
+  "compared_to_previous_build": false,
+  "excludes": [
+    "USB/radio/firmware",
+    "Proton",
+    "game polling",
+    "rendering",
+    "display"
+  ],
+  "diagnostic_delay_ms_in_loaded_scenario": 2,
+  "diagnostic_queue_capacity": 256,
+  "stress_note": "Feedback is injected on every pump iteration. This keeps the simulated loop runnable and intentionally overfills the bounded diagnostic queue; input and feedback are not stored in that queue.",
+  "release_executable_sha256": "4f0c3b1055255e2031d8f87e62d623e19d3c186b50078b5228996384618e59a8",
+  "automated_tests_passed": 32,
+  "scenarios": [
+    {
+      "scenario": "input_only",
+      "samples": 2000,
+      "injection_hz": 2000,
+      "missing_or_reordered": 0,
+      "median_us": 16.623,
+      "p95_us": 24.933,
+      "p99_us": 35.619,
+      "maximum_us": 312.26,
+      "feedback_events": 0,
+      "diagnostic_drops": 0
+    },
+    {
+      "scenario": "feedback_and_slow_diagnostics",
+      "samples": 2000,
+      "injection_hz": 2000,
+      "missing_or_reordered": 0,
+      "median_us": 14.248,
+      "p95_us": 18.997,
+      "p99_us": 27.308,
+      "maximum_us": 212.526,
+      "feedback_events": 122622,
+      "diagnostic_drops": 121880
+    }
+  ]
+}

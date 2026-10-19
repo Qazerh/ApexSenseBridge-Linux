@@ -622,6 +622,22 @@ void testBowEmulationDisabledOnApex4() {
 }
 
 int main() {
+    {
+        // A runtime can redirect diagnostics away from its input thread while
+        // retaining block deduplication and all trigger translations.
+        auto* transport = new FakeTransport(false);
+        asb::flydigi::Apex5Device device{asb::flydigi::TransportPtr(transport)};
+        std::string error;
+        assert(device.verifyIdentity(error));
+        asb::dualsense::AdaptiveTriggerBridge bridge(device);
+        std::vector<std::string> messages;
+        bridge.setLogHandler([&](std::string_view line) { messages.emplace_back(line); });
+        asb::dualsense::DualSenseFeedback feedback{};
+        feedback.enableBits1 = 8; feedback.leftTriggerEffect = {0x21, 0xfc, 3};
+        bridge.handle(feedback); bridge.handle(feedback);
+        assert(messages.size() == 1 && messages.front().find("[triggers] lt block #1") == 0);
+        assert(bridge.stats().translated == 1 && bridge.stats().leftBlocks.size() == 1);
+    }
     testBowEmulation();
     testBowEmulationDisabledOnApex4();
     testBridge(false);

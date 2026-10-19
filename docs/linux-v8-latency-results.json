@@ -1,0 +1,46 @@
+{
+  "build": "linux-v8",
+  "recorded_at_utc": "2026-10-19T06:45:40.974393+00:00",
+  "configuration": "CMake Release, x86-64 Linux",
+  "measurement": "Local packet-socket injection to receipt of the UHID input event, using the production InputPump/InputPipeline/UhidDevice; Apex 5 raw-input path",
+  "physical_hardware_tested": false,
+  "compared_to_previous_build": false,
+  "excludes": [
+    "USB/radio/firmware",
+    "Proton",
+    "game polling",
+    "rendering",
+    "display"
+  ],
+  "diagnostic_delay_ms_in_loaded_scenario": 2,
+  "diagnostic_queue_capacity": 256,
+  "stress_note": "Feedback is injected on every pump iteration, keeping the simulated loop runnable. Diagnostic overload intentionally skips log records, never controller input.",
+  "release_executable_sha256": "c792eb35da85eafaba741fd78f69df5ce16a6590a5cb74a2028e321e84986b00",
+  "automated_tests_passed": 33,
+  "scenarios": [
+    {
+      "scenario": "input_only",
+      "samples": 2000,
+      "injection_hz": 2000,
+      "missing_or_reordered": 0,
+      "median_us": 14.248,
+      "p95_us": 26.121,
+      "p99_us": 41.556,
+      "maximum_us": 398.933,
+      "feedback_events": 0,
+      "diagnostic_drops": 0
+    },
+    {
+      "scenario": "feedback_and_slow_diagnostics",
+      "samples": 2000,
+      "injection_hz": 2000,
+      "missing_or_reordered": 0,
+      "median_us": 13.061,
+      "p95_us": 16.622,
+      "p99_us": 17.809,
+      "maximum_us": 20.184,
+      "feedback_events": 131349,
+      "diagnostic_drops": 130612
+    }
+  ]
+}

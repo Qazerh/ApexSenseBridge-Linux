@@ -108,9 +108,9 @@ std::optional<Apex5Identity> Apex5Identity::parseApex4Reply(
 }
 
 std::optional<Apex5Identity> Apex5Identity::parseApex6Reply(
-    std::span<const std::uint8_t> report) {
+    std::span<const std::uint8_t> report, bool allowStandard) {
     const auto parsed = apex6::parseDeviceInfo(report);
-    if (!parsed || !apex6::isProDeviceType(parsed->deviceType)) {
+    if (!parsed || (!apex6::isProDeviceType(parsed->deviceType) && !(allowStandard && parsed->deviceType == 0x95))) {
         return std::nullopt;
     }
     return Apex5Identity(ApexProtocol::RealtimeV3, parsed->deviceType,
@@ -140,7 +140,7 @@ std::string Apex5Identity::describe() const {
     } else if (isApex5()) {
         output << "Apex 5 (k5, DeviceType " << static_cast<unsigned int>(deviceType_) << ')';
     } else if (isApex6()) {
-        output << "Apex 6 Pro (k6, DeviceType "
+        output << (apex6::isProDeviceType(deviceType_) ? "Apex 6 Pro" : "Apex 6") << " (k6, DeviceType "
                << static_cast<unsigned int>(deviceType_) << ", features 0x"
                << std::hex << std::uppercase
                << static_cast<unsigned int>(features_) << std::dec << ')';

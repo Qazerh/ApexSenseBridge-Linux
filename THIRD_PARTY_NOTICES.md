@@ -1,5 +1,17 @@
 # Third-party notices
 
+## Linux UHID backend
+
+The trigger mechanism feedback in `src/platform/linux/UhidDevice.cpp` is adapted
+from the patched VIIPER v0.7.0 backend in
+`third_party/viiper-patches/viiper-v0.7.0-asb.patch`. The USB report descriptor and
+firmware identity reuse the device data in that patch. VIIPER is published by
+Alia5 under GPL-3.0. Its license is supplied in
+`packaging/linux/VIIPER-LICENSE.txt`. The adapted UHID implementation and combined
+Linux executable are provided under GPL-3.0; existing MIT source files retain
+their licenses. The Linux source package includes the complete source used to
+build its executable. No VIIPER server or USBip runtime is required on Linux.
+
 ## OpenFlydigi
 
 The Flydigi identity request/reply layout, Apex 5 DeviceType allowlist, and

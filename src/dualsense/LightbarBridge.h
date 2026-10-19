@@ -21,9 +21,16 @@ struct LightbarBridgeStats {
     std::uint64_t writeFailures = 0;
 };
 
+struct LightbarBridgeOptions {
+    std::chrono::milliseconds minimumInterval{80};
+    // The Apex 5 can display frame 0 alone, so live colors need only 3 packets.
+    bool singleFrame = false;
+};
+
 class LightbarBridge {
 public:
-    explicit LightbarBridge(flydigi::Apex5Device& device, std::uint8_t slot = 0);
+    explicit LightbarBridge(flydigi::Apex5Device& device, std::uint8_t slot = 0,
+                            LightbarBridgeOptions options = {});
     ~LightbarBridge();
 
     LightbarBridge(const LightbarBridge&) = delete;
@@ -44,6 +51,7 @@ private:
 
     flydigi::Apex5Device& device_;
     std::uint8_t slot_ = 0;
+    LightbarBridgeOptions options_;
 
     mutable std::mutex mutex_;
     std::condition_variable cv_;

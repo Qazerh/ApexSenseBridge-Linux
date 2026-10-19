@@ -10,9 +10,11 @@
 #include <algorithm>
 #include <cassert>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
 #include <deque>
+#include <mutex>
 #include <span>
 #include <string>
 #include <thread>
@@ -181,6 +183,13 @@ public:
 
     bool writeOutputReport(std::span<const std::uint8_t> report,
                            std::string&) override {
+        if (report.size() == 33 && report[3] == asb::flydigi::apex6::kCmdRealtimeMotor) {
+            std::unique_lock lock(gateMutex);
+            if (gateNext) {
+                gateNext = false; gated = true; gateSignal.notify_all();
+                gateSignal.wait(lock, [this] { return released; });
+            }
+        }
         writes.emplace_back(report.begin(), report.end());
         if (report.size() == 33 &&
             report[3] == asb::flydigi::apex6::kCmdGetInfo) {
@@ -215,6 +224,16 @@ public:
     asb::HidDeviceInfo info_{};
     std::deque<std::vector<std::uint8_t>> replies;
     std::vector<std::vector<std::uint8_t>> writes;
+    void gateFirstFrame() { std::lock_guard lock(gateMutex); gateNext = true; }
+    void waitForFrame() {
+        std::unique_lock lock(gateMutex);
+        assert(gateSignal.wait_for(lock, std::chrono::seconds(1), [this] { return gated; }));
+    }
+    void releaseFrame() { std::lock_guard lock(gateMutex); released = true; gateSignal.notify_all(); }
+private:
+    std::mutex gateMutex;
+    std::condition_variable gateSignal;
+    bool gateNext = false, gated = false, released = false;
 };
 
 } // namespace
@@ -503,7 +522,14 @@ int main() {
     waveform.audioSequence = 1;
     waveform.leftHapticSamples.fill(12000);
     waveform.rightHapticSamples.fill(-12000);
+    // Hold the first empty render at the transport. Queue overflow must not
+    // depend on whether the OS schedules the worker between producer calls.
+    transport->gateFirstFrame();
     assert(bridge.start(error));
+    transport->waitForFrame();
+    // Fill midway through the first 8 ms period so the third queued block
+    // has deadline headroom below the renderer's strict 24 ms age limit.
+    std::this_thread::sleep_for(std::chrono::milliseconds(4));
     bridge.handle(waveform);
     bridge.handle(waveform); // duplicate sequence 1
     waveform.audioSequence = 0;
@@ -514,6 +540,7 @@ int main() {
     bridge.handle(waveform);
     waveform.audioSequence = 5; // bounded queue evicts sequence 1
     bridge.handle(waveform);
+    transport->releaseFrame();
 
     std::this_thread::sleep_for(std::chrono::milliseconds(42));
     DualSenseFeedback rumble{};

@@ -7,9 +7,11 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -41,6 +43,8 @@ struct AdaptiveTriggerBridgeStats {
 class AdaptiveTriggerBridge {
 public:
     explicit AdaptiveTriggerBridge(flydigi::Apex5Device& device, unsigned strengthPercent = 100);
+    // Configure before feedback starts. Default retains upstream stderr logs.
+    void setLogHandler(std::function<void(std::string_view)> handler) { log_ = std::move(handler); }
     void handle(const DualSenseFeedback& feedback);
     void updateTriggerPositions(std::uint8_t left, std::uint8_t right);
     [[nodiscard]] bool failed() const noexcept;
@@ -64,6 +68,7 @@ private:
 
     flydigi::Apex5Device& device_;
     unsigned strengthPercent_ = 100;
+    std::function<void(std::string_view)> log_;
     std::optional<ForceTriggerCommand> lastLeft_;
     std::optional<ForceTriggerCommand> lastRight_;
     std::uint8_t lastActiveLeftType_ = 0;

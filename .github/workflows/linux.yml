@@ -1,0 +1,48 @@
+name: Linux build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        build-type: [Debug, Release]
+    name: ${{ matrix.build-type }} / Ubuntu 24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Configure
+        run: cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build build-linux --parallel 2
+      - name: Test without hardware
+        run: ctest --test-dir build-linux --output-on-failure --parallel 2
+      - name: CLI smoke test
+        run: |
+          ./build-linux/ApexSenseBridge --version
+          ./build-linux/ApexSenseBridge --help
+      - name: Package binary and corresponding source
+        if: matrix.build-type == 'Release'
+        run: ./scripts/package-linux.sh build-linux dist
+      - name: Upload Linux package
+        if: matrix.build-type == 'Release'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ApexSenseBridge-linux-x86_64
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+          if-no-files-found: error
+          retention-days: 30

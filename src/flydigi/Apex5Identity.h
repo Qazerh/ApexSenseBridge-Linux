@@ -1,6 +1,7 @@
 #pragma once
 
 #include "flydigi/Apex5Protocol.h"
+#include "flydigi/Apex6Protocol.h"
 
 #include <cstdint>
 #include <optional>
@@ -24,7 +25,7 @@ public:
     [[nodiscard]] static std::optional<Apex5Identity> parseApex4Reply(
         std::span<const std::uint8_t> report);
     [[nodiscard]] static std::optional<Apex5Identity> parseApex6Reply(
-        std::span<const std::uint8_t> report);
+        std::span<const std::uint8_t> report, bool allowStandard = false);
     [[nodiscard]] static bool isApex4DeviceType(std::uint8_t deviceType) noexcept;
     [[nodiscard]] static bool isApex5DeviceType(std::uint8_t deviceType) noexcept;
 
@@ -50,7 +51,7 @@ public:
         return isApex4() || isApex5();
     }
     [[nodiscard]] bool supportsRealtimeHaptics() const noexcept {
-        return isApex6() && (features_ & 0x80U) != 0 &&
+        return isApex6() && apex6::isProDeviceType(deviceType_) && (features_ & 0x80U) != 0 &&
                (features_ & 0x10U) != 0;
     }
     [[nodiscard]] std::uint8_t features() const noexcept { return features_; }

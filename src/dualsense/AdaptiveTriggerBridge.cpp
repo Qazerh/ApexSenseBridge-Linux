@@ -54,8 +54,12 @@ void AdaptiveTriggerBridge::recordBlock(TriggerSide side, std::uint8_t enableBit
         }
         blockLog_[index].push_back(line);
     }
-    std::cerr << "[triggers] " << (index == 0 ? "lt" : "rt") << " block #" << number
-              << ' ' << line << '\n';
+    if (log_) {
+        log_(std::string("[triggers] ") + (index == 0 ? "lt" : "rt") + " block #" + std::to_string(number) + ' ' + line);
+    } else {
+        std::cerr << "[triggers] " << (index == 0 ? "lt" : "rt") << " block #" << number
+                  << ' ' << line << '\n';
+    }
 }
 
 void AdaptiveTriggerBridge::apply(TriggerSide side, std::uint8_t enableBits,

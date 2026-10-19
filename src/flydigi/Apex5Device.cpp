@@ -237,7 +237,7 @@ bool Apex5Device::usesApex4Protocol() const noexcept {
 }
 
 bool Apex5Device::verifyIdentity(std::string& error,
-                                const std::function<bool()>& shouldStop) {
+                                const std::function<bool()>& shouldStop, bool allowStandardApex6) {
     if (!isOpen()) {
         error = "APEX device is not open";
         return false;
@@ -332,7 +332,7 @@ bool Apex5Device::verifyIdentity(std::string& error,
             if (apex4) apex4Observation.record(bytes);
             if (apex6Pro) {
                 const auto info = apex6::parseDeviceInfo(bytes);
-                if (info && !apex6::isProDeviceType(info->deviceType)) {
+                if (info && !apex6::isProDeviceType(info->deviceType) && !(allowStandardApex6 && info->deviceType == 0x95)) {
                     std::ostringstream message;
                     message << "Identity refused: valid command 0x01 reply received with unsupported "
                             << "APEX 6 DeviceType 0x" << std::hex << std::uppercase
@@ -345,14 +345,14 @@ bool Apex5Device::verifyIdentity(std::string& error,
             }
             const auto parsed = apex4
                 ? Apex5Identity::parseApex4Reply(bytes)
-                : (apex6Pro ? Apex5Identity::parseApex6Reply(bytes)
+                : (apex6Pro ? Apex5Identity::parseApex6Reply(bytes, allowStandardApex6)
                             : Apex5Identity::parseReply(bytes));
             if (!parsed) continue;
 
             const bool expectedModel = apex4 ? parsed->isApex4()
                 : (apex6Pro ? parsed->isApex6() : parsed->isApex5());
             const bool expectedCapabilities = apex6Pro
-                ? parsed->supportsRealtimeHaptics()
+                ? (parsed->supportsRealtimeHaptics() || (allowStandardApex6 && parsed->deviceType() == 0x95))
                 : parsed->supportsAdaptiveTriggers();
             if (!expectedModel || !expectedCapabilities) {
                 error = "Identity refused: found " + parsed->describe() +
@@ -636,6 +636,7 @@ bool Apex5Device::disableApex6Haptics(std::string& error) {
 
 bool Apex5Device::readProfileStatus(ProfileStatus& status, std::string& error) {
     if (!mayControlProfiles(error)) return false;
+    const auto lock = acquireWriteLock();
     const auto reply = exchangeCommand(
         *transport_, buildProfileStatusRequest(), kCmdProfileStatus, error);
     if (!reply) return false;
@@ -650,6 +651,7 @@ bool Apex5Device::readProfileStatus(ProfileStatus& status, std::string& error) {
 
 bool Apex5Device::applyProfile(std::uint8_t slot, std::string& error) {
     if (!mayControlProfiles(error)) return false;
+    const auto lock = acquireWriteLock();
     const auto request = buildApplyProfile(slot);
     if (!request) {
         error = "Profile slot must be in the range 1..4";
@@ -708,6 +710,9 @@ platform::HidReadStatus Apex5Device::readRawInputReport(
         error = "APEX device is not open";
         return platform::HidReadStatus::Error;
     }
+    // RGB command exchanges and raw motion share the same HID input queue.
+    // Do not let the input reader consume the lighting worker's acknowledgements.
+    const auto lock = acquireWriteLock();
     return transport_->readInputReport(report, timeout, bytesRead, error);
 }
 
@@ -883,8 +888,9 @@ FeedbackWriteStats Apex5Device::rumbleWriteStats() const noexcept {
     return rumbleWriteStats_;
 }
 
-bool Apex5Device::startAsyncWrites(std::string& error) {
-    const auto policy = asyncWritePolicy();
+bool Apex5Device::startAsyncWrites(std::string& error,
+                                  std::optional<AsyncWritePolicy> policyOverride) {
+    const auto policy = policyOverride ? policyOverride : asyncWritePolicy();
     if (writer_.joinable() || (identity_ && !policy)) return true;
     if (!isOpen() || !mayWriteEffects(error)) return false;
     asyncPolicy_ = *policy;
