@@ -238,7 +238,7 @@ Use `--telemetry-json status.json` for atomic status/error snapshots, and
 | Test works, game has no effects | Check native DualSense support, Steam Input and the game's settings. Proton/Wine must pass HID output to the virtual pad. This varies by game. |
 | Controller sleeps/unplugs | The bridge stops; wake/reconnect it and start again. |
 | Trigger effect remains after a forced kill | Run `./build-linux/ApexSenseBridge reset`, or power-cycle the controller. |
-| No rumble | Run `test-rumble`; in the tester select the virtual DualSense and use its heavy/light rumble controls. Check `rumble_updates` / `rumble_writes` in a v8 trace. |
+| No rumble | Run `test-rumble`; in the tester select the virtual DualSense and use its heavy/light rumble controls. Check `rumble_updates` / `rumble_writes` in a v9 trace. |
 | Old build stops while RGB updates | Restart with the current build, which separates input from RGB command replies; `--no-lightbar` remains available for diagnosis. |
 
 On Ctrl+C, SIGTERM, SIGHUP, startup failure or normal errors, the program removes

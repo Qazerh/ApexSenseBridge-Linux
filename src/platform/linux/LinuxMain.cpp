@@ -155,7 +155,7 @@ int runSession(const Options& options, linux_backend::StatusFile& telemetry) {
     if (!options.traceFile.empty()) {
         traceFile.open(options.traceFile, std::ios::out | std::ios::trunc);
         require(traceFile.is_open(), "Cannot open HID trace file: " + options.traceFile);
-        traceFile << "ApexSenseBridge Linux HID trace v8 (immediate ordered input, async diagnostics; touchpad profiles, battery, telemetry; independent input/fast RGB/rumble/setup 0x08)\n";
+        traceFile << "ApexSenseBridge Linux HID trace v9 (immediate ordered input, async diagnostics; touchpad profiles, battery, telemetry; independent input/fast RGB/rumble/setup 0x08)\n";
         traceFile.flush();
         require(bool(traceFile), "Cannot write HID trace: " + options.traceFile);
     }
