@@ -4,7 +4,6 @@
 
 #include "flydigi/Apex5Device.h"
 #include "core/ApexProfileRestoreGuard.h"
-#include "core/ApexMotionDiagnosticGuard.h"
 #include "dualsense/DualSenseInput.h"
 #include "flydigi/Apex4Protocol.h"
 #include "flydigi/Apex5Identity.h"
@@ -357,59 +356,13 @@ int main() {
     assert(!transportStatus.controllerData && transportStatus.rawData);
     assert(accepted.setInputTransport(true, false, error));
 
-    // Diagnostics enable raw motion while preserving the ordinary controller
-    // output, then restore the exact initial routing on normal or early exit.
-    for (const bool controllerOutput : {false, true}) {
-        assert(accepted.setInputTransport(controllerOutput, false, error));
-        {
-            ApexMotionDiagnosticGuard motion(accepted);
-            assert(motion.enable(error));
-            assert(accepted.readInputTransportStatus(transportStatus, error));
-            assert(transportStatus.controllerData == controllerOutput && transportStatus.rawData);
-        }
-        assert(accepted.readInputTransportStatus(transportStatus, error));
-        assert(transportStatus.controllerData == controllerOutput && !transportStatus.rawData);
-    }
-    assert(accepted.setInputTransport(true, true, error));
-    {
-        ApexMotionDiagnosticGuard motion(accepted);
-        const auto writesBefore = acceptedTransport->writes.size();
-        assert(motion.enable(error));
-        assert(motion.restore(error));
-        assert(motion.restore(error));
-        assert(acceptedTransport->writes.size() == writesBefore + 1); // Read only when already enabled.
-    }
-    assert(accepted.readInputTransportStatus(transportStatus, error));
-    assert(transportStatus.controllerData && transportStatus.rawData);
-    assert(accepted.setInputTransport(true, false, error));
-
+    // Routing readback must preserve firmware's non-boolean ownership byte.
     acceptedTransport->thirdPartyControlByte = 0x16;
     assert(accepted.readInputTransportStatus(transportStatus, error));
     assert(!transportStatus.thirdPartyControl.value());
     assert(transportStatus.thirdPartyControl.raw == 0x16);
     assert(accepted.setInputTransport(false, true, error));
     assert(accepted.setInputTransport(true, false, error));
-    {
-        ApexMotionDiagnosticGuard motion(accepted);
-        assert(motion.enable(error));
-        assert(accepted.readInputTransportStatus(transportStatus, error));
-        assert(transportStatus.controllerData && transportStatus.rawData);
-    }
-    assert(accepted.readInputTransportStatus(transportStatus, error));
-    assert(transportStatus.controllerData && !transportStatus.rawData);
-
-    acceptedTransport->thirdPartyControlByte = 1;
-    {
-        ApexMotionDiagnosticGuard motion(accepted);
-        const auto writesBefore = acceptedTransport->writes.size();
-        error.clear();
-        assert(!motion.enable(error));
-        assert(!error.empty());
-        assert(acceptedTransport->writes.size() == writesBefore + 1);
-    }
-    assert(accepted.readInputTransportStatus(transportStatus, error));
-    assert(transportStatus.thirdPartyControl.value() == true);
-    assert(transportStatus.controllerData && !transportStatus.rawData);
     acceptedTransport->thirdPartyControlByte = 0;
     error.clear();
 

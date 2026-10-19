@@ -36,16 +36,7 @@ public:
         std::string& error) = 0;
 };
 
-enum class HidStringQuery {
-    KnownControllers,
-    AllDevices,
-};
-
-[[nodiscard]] bool queriesHidStrings(HidStringQuery query,
-                                     std::uint16_t vendorId,
-                                     std::uint16_t productId) noexcept;
-[[nodiscard]] std::vector<HidDeviceInfo> enumerateHidDevices(
-    std::string& error, HidStringQuery strings = HidStringQuery::KnownControllers);
+[[nodiscard]] std::vector<HidDeviceInfo> enumerateHidDevices(std::string& error);
 [[nodiscard]] HidTransport* createHidTransport(const HidDeviceInfo& info, std::string& error);
 void destroyHidTransport(HidTransport* transport) noexcept;
 

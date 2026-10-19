@@ -3,27 +3,6 @@
 #include <algorithm>
 
 namespace asb::dualsense {
-namespace {
-
-std::uint16_t readU16(std::span<const std::uint8_t> data, std::size_t offset) {
-    return static_cast<std::uint16_t>(data[offset]) |
-           (static_cast<std::uint16_t>(data[offset + 1]) << 8);
-}
-
-std::uint32_t readU32(std::span<const std::uint8_t> data, std::size_t offset) {
-    return static_cast<std::uint32_t>(data[offset]) |
-           (static_cast<std::uint32_t>(data[offset + 1]) << 8) |
-           (static_cast<std::uint32_t>(data[offset + 2]) << 16) |
-           (static_cast<std::uint32_t>(data[offset + 3]) << 24);
-}
-
-std::uint64_t readU64(std::span<const std::uint8_t> data, std::size_t offset) {
-    return static_cast<std::uint64_t>(readU32(data, offset)) |
-           (static_cast<std::uint64_t>(readU32(data, offset + 4)) << 32);
-}
-
-} // namespace
-
 bool DualSenseFeedback::hasRumble() const {
     return kind == FeedbackKind::HidOutput && (rumbleLeft != 0 || rumbleRight != 0);
 }
@@ -47,86 +26,6 @@ bool DualSenseFeedback::hasTriggerEffect() const {
 
 bool DualSenseFeedback::hasLightbarColor() const noexcept {
     return kind == FeedbackKind::HidOutput && hasLightbar;
-}
-
-bool decodeViiperFeedbackFrame(std::uint8_t frameType,
-                               std::span<const std::uint8_t> payload,
-                               DualSenseFeedback& feedback) {
-    if (frameType == 0x01) {
-        if (payload.size() < 27) {
-            return false;
-        }
-
-        DualSenseFeedback decoded{};
-        decoded.kind = FeedbackKind::HidOutput;
-        decoded.enableBits1 = payload[0];
-        decoded.enableBits2 = payload[1];
-        decoded.rumbleRight = payload[2];
-        decoded.rumbleLeft = payload[3];
-        decoded.enableBits3 = payload[4];
-        std::copy_n(payload.begin() + 5, decoded.rightTriggerEffect.size(),
-                    decoded.rightTriggerEffect.begin());
-        std::copy_n(payload.begin() + 16, decoded.leftTriggerEffect.size(),
-                    decoded.leftTriggerEffect.begin());
-        constexpr std::uint8_t kLightbarControlEnable = 0x04;
-        if (payload.size() >= 30 &&
-            (decoded.enableBits2 & kLightbarControlEnable) != 0) {
-            decoded.lightbarRed = payload[27];
-            decoded.lightbarGreen = payload[28];
-            decoded.lightbarBlue = payload[29];
-            decoded.hasLightbar = true;
-        }
-        feedback = decoded;
-        return true;
-    }
-
-    if (frameType == 0x02) {
-        if (payload.size() < 16) {
-            return false;
-        }
-
-        DualSenseFeedback decoded{};
-        decoded.kind = FeedbackKind::AudioHaptics;
-        decoded.audioSequence = readU32(payload, 0);
-        decoded.leftEnergy = readU16(payload, 4);
-        decoded.rightEnergy = readU16(payload, 6);
-        decoded.leftPeak = readU16(payload, 8);
-        decoded.rightPeak = readU16(payload, 10);
-        decoded.leftTransient = readU16(payload, 12);
-        decoded.rightTransient = readU16(payload, 14);
-        feedback = decoded;
-        return true;
-    }
-
-    if (frameType == 0x03) {
-        constexpr std::size_t kPayloadSize = 4 + 8 * 2 * sizeof(std::int16_t);
-        if (payload.size() < kPayloadSize) {
-            return false;
-        }
-
-        DualSenseFeedback decoded{};
-        decoded.kind = FeedbackKind::AudioHapticWaveform;
-        decoded.audioSequence = readU32(payload, 0);
-        for (std::size_t index = 0; index < 8; ++index) {
-            decoded.leftHapticSamples[index] = static_cast<std::int16_t>(
-                readU16(payload, 4 + index * 4));
-            decoded.rightHapticSamples[index] = static_cast<std::int16_t>(
-                readU16(payload, 6 + index * 4));
-        }
-        if (payload.size() >= 64) {
-            decoded.hasRawAudioMeasurements = true;
-            for (std::size_t index = 0; index < decoded.rawAudioPeaks.size(); ++index) {
-                decoded.rawAudioPeaks[index] = readU16(payload, 36 + index * 2);
-            }
-            decoded.rawHapticLeftSumSquares = readU64(payload, 44);
-            decoded.rawHapticRightSumSquares = readU64(payload, 52);
-            decoded.rawAudioFrames = readU32(payload, 60);
-        }
-        feedback = decoded;
-        return true;
-    }
-
-    return false;
 }
 
 } // namespace asb::dualsense

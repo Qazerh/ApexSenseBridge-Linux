@@ -2,15 +2,20 @@
 
 ## Linux UHID backend
 
-The trigger mechanism feedback in `src/platform/linux/UhidDevice.cpp` is adapted
-from the patched VIIPER v0.7.0 backend in
-`third_party/viiper-patches/viiper-v0.7.0-asb.patch`. The USB report descriptor and
-firmware identity reuse the device data in that patch. VIIPER is published by
-Alia5 under GPL-3.0. Its license is supplied in
-`packaging/linux/VIIPER-LICENSE.txt`. The adapted UHID implementation and combined
-Linux executable are provided under GPL-3.0; existing MIT source files retain
-their licenses. The Linux source package includes the complete source used to
-build its executable. No VIIPER server or USBip runtime is required on Linux.
+The trigger mechanism feedback in `src/platform/linux/UhidDevice.cpp`, USB
+report descriptor and firmware identity are adapted from the patched VIIPER
+v0.7.0 backend previously distributed by the original project:
+
+- VIIPER: https://github.com/Alia5/VIIPER
+- Source patch: https://github.com/ReynArts/ApexSenseBridge/blob/1adf78dacbfcc6eb6f2f41ae7cc8060962e148b6/third_party/viiper-patches/viiper-v0.7.0-asb.patch
+- Author: Alia5
+- License: GPL-3.0; complete text in `packaging/linux/VIIPER-LICENSE.txt`.
+
+The adapted UHID implementation and combined Linux executable are provided
+under GPL-3.0; existing MIT source files retain their licenses. The Linux
+source package includes the complete source used to build its executable.
+No VIIPER server, USBip, HidHide, Windows installer or Playnite component is
+included or required by this Linux repository.
 
 ## OpenFlydigi
 
@@ -50,10 +55,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ## SteamlessController DualSense fork
 
-The VIIPER request framing, patched-sidecar compatibility checks, compact
-DualSense feedback framing, and Windows sidecar lifecycle in
-`src/dualsense/*` and `src/platform/windows/WindowsVirtualDualSense.cpp` were
-adapted from and validated against the SteamlessController DualSense fork:
+The shared DualSense feedback/input types originate in upstream code adapted
+from the SteamlessController DualSense fork. The Linux bridge uses native UHID
+reports; the Windows sidecar lifecycle and VIIPER transport serializers have
+been removed. Attribution and the applicable MIT notice are retained here:
 
 - Project: https://github.com/david419kr/steamless-controller-XB-PS-NS
 - Reference commit: `e19e874e00938eff2ee28d1a928dc2ab58bf9b75`
@@ -85,127 +90,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-## VIIPER and usbip-win2 runtime components
-
-The offline installer redistributes the pinned patched VIIPER integrated
-library and sidecar fallback (GPL-3.0), plus the OSSign usbip-win2 0.9.8.0 x64
-release installer built from upstream commit
-`83bd1f781d57ed6efdf15530c55710cf5d4482bc` and signed through Microsoft
-attestation (BSD-2-Clause). The corresponding VIIPER source reference/patch and
-complete license texts are installed under `Licenses`.
-
-## HidHide
-
-The mandatory DualSense-mode physical-controller isolation uses the public HidHide IOCTL
-contract and configuration semantics. The implementation was validated against:
-
-- Project: https://github.com/nefarius/HidHide
-- Reference commit: `2b950fd9393e1644b4199f6eb4999e1720f0c6e9`
-- Reference files: `Shared/HidHideIoctlContract.h`,
-  `HidHideCLI/src/FilterDriverProxy.cpp`, and `DEVELOPER.md`
-- Copyright: 2020 Eric Korff de Gidts; 2021-2024 Benjamin Höglinger-Stelzer
-- License: MIT
-
-The offline installer redistributes the official signed HidHide 1.5.230 x64
-installer and its MIT license. It leaves a pre-existing installation owned by
-the user unless complete dependency removal is explicitly requested.
-
-## Playnite SDK
-
-The Playnite integration plugin (`playnite/ApexSenseBridge`) references and compiles against the Playnite SDK:
-
-- Project: https://github.com/JosefNemec/Playnite
-- Reference: Playnite SDK 6.16 (Playnite 10 / 11)
-- Copyright: 2017-2023 Josef Nemec
-- License: MIT
-
-MIT License
-
-Copyright (c) 2017-2023 Josef Nemec
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-## Playnite NX Audio Switcher
-
-The Windows `IPolicyConfig` declaration and three-role default-endpoint update
-used by `WindowsAudioEndpointProtection.cpp` were adapted from Playnite NX
-Audio Switcher's `AudioDeviceManager.cs`:
-
-- Project: https://github.com/Naerian/playnite-nx-audio-switcher
-- Reference file: `AudioDeviceManager.cs`
-- License: MIT
-
-MIT License
-
-Copyright (c) Naerian
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-## Chromium Core Audio
-
-The device-topology route used to resolve an audio endpoint to its controller
-`PKEY_Device_InstanceId` was adapted from Chromium's Core Audio utility:
-
-- Project: https://chromium.googlesource.com/chromium/src
-- Reference commit: `0760405a9f0330d4a79a6d4beb48f290afc96a28`
-- Reference file: `media/audio/win/core_audio_util_win.cc`
-- Copyright: 2012 The Chromium Authors
-- License: BSD-style (3-clause)
-
-Copyright (c) 2012 The Chromium Authors. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice,
-   this list of conditions and the following disclaimer.
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-3. Neither the name of Google Inc. nor the names of its contributors may be
-   used to endorse or promote products derived from this software without
-   specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
-ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

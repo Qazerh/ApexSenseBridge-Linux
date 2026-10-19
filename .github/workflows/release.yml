@@ -1,0 +1,96 @@
+name: Linux release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'New release tag (for example linux-v9)'
+        required: true
+        type: string
+      prerelease:
+        description: Mark this as a prerelease
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, test and publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate new Linux release tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^linux-v[0-9][A-Za-z0-9._-]*$ ]] ||
+             ! git check-ref-format "refs/tags/$RELEASE_TAG"; then
+            echo '::error::Use a valid new Linux tag such as linux-v9 or linux-v9-rc.1.'
+            exit 1
+          fi
+          if git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"; then
+            echo '::error::This tag already exists. Choose a new tag; existing releases are never overwritten.'
+            exit 1
+          fi
+      - name: Configure Release
+        run: cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build build-linux --parallel 2
+      - name: Test without hardware
+        run: ctest --test-dir build-linux --output-on-failure --parallel 2
+      - name: CLI smoke test
+        run: |
+          ./build-linux/ApexSenseBridge --version
+          ./build-linux/ApexSenseBridge --help
+      - name: Package binary and corresponding source
+        run: ./scripts/package-linux.sh build-linux dist
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
+          Linux command-line bridge for Flydigi Apex 4, 5, 6 and 6 Pro.
+
+          The package contains the x86-64 executable, setup rules, documentation,
+          licenses and corresponding source. See the README for permissions,
+          supported features and limitations. Built on Ubuntu 24.04; build from
+          source if your distribution's runtime is older.
+
+          Tested by the user on an Apex 5 in Overwatch and Warframe. Other models
+          have automated coverage and still need physical Linux validation.
+          NOTES
+          printf '\nSource commit: `%s`.\n' "$GITHUB_SHA" >> "$RUNNER_TEMP/release-notes.md"
+          args=(--target "$GITHUB_SHA" --title "ApexSenseBridge for Linux $RELEASE_TAG"
+                --notes-file "$RUNNER_TEMP/release-notes.md")
+          if [[ "$PRERELEASE" == true ]]; then
+            args+=(--prerelease --latest=false)
+          else
+            args+=(--latest)
+          fi
+          # Create the tag atomically, so a concurrent tag cannot change the
+          # source revision between validation and release publication.
+          gh api --method POST "repos/$GH_REPO/git/refs" \
+            -f "ref=refs/tags/$RELEASE_TAG" -f "sha=$GITHUB_SHA" --silent
+          gh release create "$RELEASE_TAG" --verify-tag \
+            dist/ApexSenseBridge-linux-x86_64.tar.gz \
+            dist/ApexSenseBridge-linux-x86_64.sha256 "${args[@]}"

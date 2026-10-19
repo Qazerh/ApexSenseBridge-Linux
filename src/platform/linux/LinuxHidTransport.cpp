@@ -40,7 +40,7 @@ public:
             return false;
         }
         // V1 commands are shorter than their declared 32/64-byte output report.
-        // Match upstream's Windows backend padding, including the report ID.
+        // Include the report ID when padding the declared HID output buffer.
         std::vector<std::uint8_t> wire(info_.outputReportLength, 0);
         std::copy(report.begin(), report.end(), wire.begin());
         ssize_t written;
@@ -83,7 +83,7 @@ private:
 };
 } // namespace
 
-std::vector<HidDeviceInfo> enumerateHidDevices(std::string& error, HidStringQuery) {
+std::vector<HidDeviceInfo> enumerateHidDevices(std::string& error) {
     error.clear();
     std::vector<HidDeviceInfo> result;
     std::error_code ec;

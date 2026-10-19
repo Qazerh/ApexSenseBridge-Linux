@@ -17,7 +17,7 @@ the request shape and verifies that trigger output can follow a successful
 setup. The user subsequently confirmed working input and adaptive triggers in
 Overwatch without launch-option changes. The successful trace showed feature
 `0x08` accepted and no unsupported trigger effects. The current build's trace
-header is `v8`, which retains the working setup support, independent input,
+header is `v9`, which retains the working setup support, independent input,
 smaller live RGB transfers and rumble, and adds battery/touchpad counters.
 
 ## Capture a diagnostic run
@@ -65,7 +65,7 @@ options so subsequent starts go straight into the game.
 - `OPEN`/`CLOSE` events in that trace count aggregate kernel consumers. They
   do not identify which process opened the controller.
 
-The diagnostic executable is provided as `bin/ProtonHidProbe.exe`. Its complete
+The optional diagnostic executable is built as `bin/ProtonHidProbe.exe`. Its complete
 source is `src/tools/ProtonHidProbe.c`. Rebuilding the optional checker requires
 Wine development headers/import libraries plus GCC and binutils:
 

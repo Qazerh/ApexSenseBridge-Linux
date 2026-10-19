@@ -42,7 +42,7 @@ Report buildChecksummedCommand(
     std::copy(payload.begin(), payload.end(), report.begin() + 5);
 
     std::uint8_t checksum = 0;
-    for (std::size_t index = 3; index < 3 + report[4]; ++index) {
+    for (std::size_t index = 3; index < std::size_t{3} + report[4]; ++index) {
         checksum = static_cast<std::uint8_t>(checksum + report[index]);
     }
     report[3 + report[4]] = checksum;

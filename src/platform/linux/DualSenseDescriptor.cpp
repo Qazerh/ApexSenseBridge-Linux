@@ -1,4 +1,5 @@
-// Descriptor reused from third_party/viiper-patches/viiper-v0.7.0-asb.patch.
+// Descriptor adapted from the upstream patched VIIPER v0.7.0 device.
+// See THIRD_PARTY_NOTICES.md for its source reference and GPL license.
 #include "platform/linux/DualSenseReports.h"
 
 namespace asb::platform::linux_backend {

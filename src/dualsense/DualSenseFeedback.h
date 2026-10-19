@@ -56,11 +56,4 @@ struct DualSenseFeedback {
     bool hasLightbarColor() const noexcept;
 };
 
-// Decodes the compact server-to-client framing exposed by the patched VIIPER
-// DualSense backend. Frame type 0x01 is HID output, 0x02 is audio-haptics
-// telemetry, and 0x03 is an 8 ms stereo haptic waveform.
-bool decodeViiperFeedbackFrame(std::uint8_t frameType,
-                               std::span<const std::uint8_t> payload,
-                               DualSenseFeedback& feedback);
-
 } // namespace asb::dualsense

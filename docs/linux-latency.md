@@ -44,7 +44,7 @@ documented shortcuts (for example the 400 ms View hold threshold).
 
 ## Verification and measurement
 
-All 33 automated tests pass. The input regression test uses the same
+The Linux automated tests pass. The input regression test uses the same
 `InputPump`, mapper and UHID report writer as the app. It verifies:
 
 - 64 adjacent input samples preserve all press/release edges, axes and gyro;

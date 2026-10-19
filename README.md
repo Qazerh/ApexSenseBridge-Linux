@@ -66,6 +66,17 @@ the corresponding source. Build locally if your distribution's runtime is
 older than the artifact's runtime. CI tests use simulated devices; they do not
 replace hardware testing.
 
+## Create a release manually
+
+Open **[Actions → Linux release](https://github.com/RafaelDiasCampos/ApexSenseBridge-Linux/actions/workflows/release.yml)
+→ Run workflow**. Select `main`, enter a new tag such as `linux-v9`, optionally
+mark it as a prerelease, and run it. The workflow builds and tests the selected
+revision, then creates the tag and publishes a GitHub release with the Linux
+package and SHA-256 checksum. Existing tags/releases are never overwritten.
+It uses GitHub's built-in token; no additional secret is needed. Releases only
+run manually, not on pushes or tags. Keep version identifiers in `--version`
+aligned with your chosen release series when preparing later versions.
+
 ## One-time device permissions
 
 From the repository directory:
@@ -137,9 +148,8 @@ when several supported controllers are connected.
 This Linux port does **not** implement the original Windows tray/GUI, game
 process detection, automatic game profiles, Playnite integration, Windows
 installer/driver management or automatic reconnection.
-Upstream Windows components remain in the source history/tree for provenance;
-the Linux build does not run them. The inherited Windows release and scheduled
-game-list workflows are not enabled in this repository.
+The checkout contains only the Linux runtime, tests, diagnostics, setup files
+and documentation. Upstream history and attribution remain available in Git.
 
 Native DualSense **PCM/audio haptics are not implemented**: the virtual UHID
 controller has no USB audio endpoint. Standard motor rumble and supported

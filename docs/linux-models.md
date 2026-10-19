@@ -61,7 +61,7 @@ the standard Apex 6 identity `0x95` for input and kernel rumble only. Pro IDs
 `0x96` and `0x98` additionally need both advertised haptic capability bits.
 Unknown identities and corrupt V3 checksums are rejected. A standard model
 cannot receive Pro `0x53`/`0x57` commands even if its feature byte resembles a Pro.
-Existing Windows identity checks retain their stricter default behavior.
+The Linux bridge rejects unknown identities before changing motor state.
 
 V1 short commands are padded to the declared 32/64-byte report size. V3
 unnumbered output uses the zero report-ID prefix required by hidraw; input
@@ -115,7 +115,7 @@ means the bridge does not manage that model's onboard profiles. Battery fields
 are meaningful only when `battery_available` is true; other virtual reports
 retain the existing synthetic full-battery fallback.
 
-All 33 tests include the original portable protocols plus Linux model routing,
+The Linux tests include the original portable protocols plus Linux model routing,
 V1 motion, raw V3 identity replies, Pro/PBZ capability checks, standard-model
 write rejection, kernel rumble scaling/stop, buffered input edges, trigger-axis
 mapping and idle/disconnect behavior. Physical testing should confirm controls,

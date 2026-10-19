@@ -123,7 +123,7 @@ not implemented; standard grip rumble is supported. A motion sensor does not
 add gyro aiming to games that do not consume it, and touchpad profile names
 do not certify each game's Proton compatibility.
 
-The 33 tests cover the original mapper, its Linux USB report path, profile
+The Linux tests cover the original mapper, its Linux USB report path, profile
 restoration after a lost ACK, battery updates, gain clipping, CLI contracts,
 JSON snapshots, rapid input edges, feedback fairness, a blocked diagnostic
 worker and the existing busy RGB/trigger/rumble input tests. Added Apex 4/6 model paths still require physical/game acceptance testing.
