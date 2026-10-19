@@ -29,6 +29,14 @@ jobs:
         run: cmake --build build-linux --parallel 2
       - name: Test without hardware
         run: ctest --test-dir build-linux --output-on-failure --parallel 2
+      - name: Verify staged installation
+        run: |
+          make install BUILD_DIR=build-linux DESTDIR="$RUNNER_TEMP/asb-install" PREFIX=/usr/local
+          make install-udev DESTDIR="$RUNNER_TEMP/asb-install"
+          "$RUNNER_TEMP/asb-install/usr/local/bin/ApexSenseBridge" --version
+          "$RUNNER_TEMP/asb-install/usr/local/bin/apexsensebridge-steam" --help
+          test -f "$RUNNER_TEMP/asb-install/etc/udev/rules.d/70-apexsensebridge.rules"
+          test -f "$RUNNER_TEMP/asb-install/etc/modules-load.d/apexsensebridge.conf"
       - name: CLI smoke test
         run: |
           ./build-linux/ApexSenseBridge --version

@@ -1,6 +1,7 @@
 #include "platform/linux/AsyncDiagnostics.h"
 
 #include <exception>
+#include <stdexcept>
 
 namespace asb::platform::linux_backend {
 
@@ -21,6 +22,18 @@ bool AsyncDiagnostics::submit(std::function<void()> task) {
     return true;
 }
 
+void AsyncDiagnostics::submitRequired(std::function<void()> task) {
+    std::unique_lock lock(mutex_);
+    cv_.wait(lock, [this] { return size_ < kCapacity || stopping_ || failed(); });
+    if (failed()) throw std::runtime_error(error_);
+    if (stopping_) throw std::runtime_error("Diagnostics worker stopped");
+    queue_[tail_] = std::move(task);
+    tail_ = (tail_ + 1) % kCapacity;
+    ++size_;
+    lock.unlock();
+    cv_.notify_one();
+}
+
 void AsyncDiagnostics::run() {
     for (;;) {
         std::function<void()> task;
@@ -32,6 +45,7 @@ void AsyncDiagnostics::run() {
             head_ = (head_ + 1) % kCapacity;
             --size_;
         }
+        cv_.notify_all();
         try { task(); }
         catch (const std::exception& error) {
             std::lock_guard lock(mutex_);
@@ -52,7 +66,7 @@ std::string AsyncDiagnostics::error() const {
 
 void AsyncDiagnostics::finish() {
     { std::lock_guard lock(mutex_); stopping_ = true; }
-    cv_.notify_one();
+    cv_.notify_all();
     if (worker_.joinable()) worker_.join();
 }
 

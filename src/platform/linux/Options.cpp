@@ -35,6 +35,7 @@ Options parseOptions(std::span<const std::string_view> args) {
         if (arg == "--no-grab") { o.grab = false; continue; }
         if (arg == "--no-lightbar") { o.lightbar = false; o.lightbarRequested = false; lightbarSet = true; continue; }
         if (arg == "--sync-lightbar") { o.lightbar = true; o.lightbarRequested = true; lightbarSet = true; continue; }
+        if (arg == "--once") { o.once = true; continue; }
         if (arg == "--verbose") { o.verbose = true; continue; }
         if (arg == "--json") { o.json = true; continue; }
         if (arg == "--view-hold-swipe-up") {
@@ -91,6 +92,7 @@ Options parseOptions(std::span<const std::string_view> args) {
         check(oneOf(c, {"bridge", "input-status", "test-triggers", "test-rumble", "test-gyro", "test-rgb", "test-profile-switch"}), "--seconds requires bridge or a timed test");
         if (c != "bridge") check(o.seconds <= 30, "Test duration must be in 1..30 seconds");
     } else if (c == "test-rgb") o.seconds = 2;
+    check(!o.once || c == "bridge", "--once requires bridge");
     check(!strengthSet || oneOf(c, {"bridge", "test-triggers"}), "--strength requires bridge or test-triggers");
     check(!gyroSet || oneOf(c, {"bridge", "test-gyro", "input-status"}), "Gyro tuning requires bridge, test-gyro or input-status");
     check(!rumbleSet || oneOf(c, {"bridge", "test-rumble"}), "--rumble-strength requires bridge or test-rumble");
@@ -123,7 +125,7 @@ Options parseOptions(int argc, char** argv) {
 }
 
 void printHelp() {
-    std::cout << "ApexSenseBridge " ASB_RELEASE_LABEL " Linux v9 — Apex 4 / 5 / 6 / 6 Pro\n\n"
+    std::cout << "ApexSenseBridge " ASB_RELEASE_LABEL " Linux v10 — Apex 4 / 5 / 6 / 6 Pro\n\n"
         "Usage: ApexSenseBridge [command] [options]\n"
         "  bridge              Forward input, gyro, adaptive triggers, rumble and RGB (default)\n"
         "  list / diagnose     List candidates / check interfaces and permissions\n"
@@ -137,6 +139,7 @@ void printHelp() {
         "  test-rgb            Apex 5: cycle RGB or test --color RRGGBB\n"
         "  test-profile-switch Temporarily select --target 1..4, then restore\n"
         "  reset               Stop triggers and rumble\n\n"
+        "  --once              Exit instead of waiting/reconnecting (bridge only)\n"
         "  --device PATH       Select /dev/hidrawN from list\n"
         "  --seconds N         Bridge limit 1..86400; tests 1..30 (RGB: per color)\n"
         "  --strength N        Trigger strength 0..100 (default 100)\n"
@@ -157,6 +160,7 @@ void printHelp() {
         "--trigger-strength, --vibration-strength, --view-hold-swipe-up.\n"
         "Use USB or the 2.4 GHz receiver. Keep Steam Input disabled for native feedback.\n"
         "Apex 4: DInput; Apex 6/Pro: PC/XInput. RGB/profiles: Apex 5 only.\n"
+        "Bridge waits for a controller and reconnects automatically.\n"
         "Ctrl+C restores the controller. See docs/linux.md.\n";
 }
 

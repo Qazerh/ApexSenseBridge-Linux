@@ -10,7 +10,7 @@
 
 namespace asb::platform::linux_backend {
 
-// One producer (the event loop) and one I/O worker. A busy/full queue drops
+// Event-loop producers and one I/O worker. A busy/full queue drops
 // diagnostics rather than waiting on a filesystem, terminal or worker lock.
 class AsyncDiagnostics {
 public:
@@ -19,6 +19,8 @@ public:
     AsyncDiagnostics(const AsyncDiagnostics&) = delete;
     AsyncDiagnostics& operator=(const AsyncDiagnostics&) = delete;
     bool submit(std::function<void()> task);
+    // Startup/reconnect state transitions only; never used in the active input path.
+    void submitRequired(std::function<void()> task);
     bool failed() const noexcept { return failed_.load(std::memory_order_acquire); }
     std::string error() const;
     std::uint64_t dropped() const noexcept { return dropped_.load(std::memory_order_relaxed); }

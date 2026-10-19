@@ -1,4 +1,4 @@
-# Linux v9 controller support
+# Linux v10 controller support
 
 The Linux foreground bridge now detects Apex 4, Apex 5, Apex 6 and Apex 6 Pro.
 Start `bin/ApexSenseBridge bridge`; the model selects the input/feedback path.

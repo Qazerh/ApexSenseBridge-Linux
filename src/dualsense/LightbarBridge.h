@@ -9,6 +9,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 
@@ -38,6 +39,10 @@ public:
 
     void handle(const DualSenseFeedback& feedback);
     void restore();
+    void stopWithoutRestore();
+    std::optional<std::array<std::uint8_t, flydigi::kRgbConfigSize>> backup() const {
+        return hasBackup_ ? std::optional{backupConfig_} : std::nullopt;
+    }
 
     [[nodiscard]] bool failed() const noexcept;
     [[nodiscard]] std::string error() const;

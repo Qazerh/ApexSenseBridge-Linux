@@ -7,6 +7,7 @@
 #include "dualsense/RumbleBridge.h"
 #include "flydigi/Apex5Input.h"
 #include "platform/linux/DualSenseReports.h"
+#include "platform/linux/BridgeLifecycle.h"
 #include "platform/linux/HidReportDescriptor.h"
 #include "platform/linux/InputStream.h"
 #include "platform/linux/UhidDevice.h"
@@ -54,7 +55,18 @@ public:
             lastLow = report[5]; lastHigh = report[6]; ++rumbleWrites;
         }
         if (command == 0x51) ++triggerWrites;
-        if (command == asb::flydigi::kCmdReadRgbConfig) {
+        if (command == asb::flydigi::kCmdProfileStatus || command == asb::flydigi::kCmdReadInputTransport ||
+            command == asb::flydigi::kCmdSetInputTransport) {
+            if (command == asb::flydigi::kCmdSetInputTransport) {
+                if (failRouting) { error = "lost routing ACK"; return false; }
+                controllerData = report[5]; rawData = report[6];
+            }
+            std::vector<std::uint8_t> reply(32);
+            reply[0] = 4; reply[1] = 0x5a; reply[2] = 0xa5; reply[3] = command;
+            if (command == asb::flydigi::kCmdProfileStatus) reply[6] = profile;
+            else { reply[6] = controllerData; reply[7] = rawData; }
+            replies_.push_back(std::move(reply));
+        } else if (command == asb::flydigi::kCmdReadRgbConfig) {
             for (unsigned packet = 0; packet < asb::flydigi::kRgbPacketCount; ++packet) {
                 std::vector<std::uint8_t> reply(32);
                 reply[0] = 4; reply[1] = 0x5a; reply[2] = 0xa5; reply[3] = command;
@@ -65,6 +77,7 @@ public:
         } else if (command == asb::flydigi::kCmdWriteRgbStart ||
                    command == asb::flydigi::kCmdWriteRgbPack ||
                    command == asb::flydigi::kCmdApplyProfile) {
+            if (command == asb::flydigi::kCmdApplyProfile) profile = report[5];
             if (command == asb::flydigi::kCmdWriteRgbStart) {
                 rgbStart_ = report[6];
                 if (blockRgbWrite.exchange(false)) {
@@ -90,7 +103,8 @@ public:
         size = reply.size();
         return asb::platform::HidReadStatus::Data;
     }
-    bool fail = false;
+    bool fail = false, failRouting = false;
+    std::uint8_t profile = 0, controllerData = 1, rawData = 0;
     std::atomic_bool blockRgbWrite{false}, rgbWriteBlocked{false}, releaseRgbWrite{false}, failRgbOnce{false};
     std::atomic_uint rumbleWrites{0}, triggerWrites{0}, lastLow{0}, lastHigh{0};
     std::atomic_uint rgbDelayMs{0};
@@ -331,6 +345,41 @@ void rgbTests() {
     interrupted.restore();
     assert(interrupted.stats().writeFailures == 1 && usb->rgbConfig == originalRgb);
     ::close(sockets[1]);
+}
+
+void reconnectSettingsTests() {
+    using namespace std::chrono_literals;
+    auto transport = std::make_unique<ApexTransport>(); auto* usb = transport.get();
+    asb::flydigi::Apex5Device apex(asb::flydigi::TransportPtr(transport.release()));
+    std::string error; assert(apex.verifyIdentity(error));
+    const auto baseline = usb->rgbConfig;
+    DeferredSettings saved;
+    saved.pending = true; saved.model = 128; saved.originalSlot = 1; saved.rgbSlot = 3;
+    saved.transport.controllerData = true; saved.transport.rawData = false;
+    {
+        asb::dualsense::LightbarBridge lights(apex, 3);
+        assert(!lights.failed() && lights.backup() == baseline);
+        saved.rgb = lights.backup();
+        asb::dualsense::DualSenseFeedback f; f.hasLightbar = true; f.lightbarRed = 200;
+        lights.handle(f);
+        const auto deadline = std::chrono::steady_clock::now() + 2s;
+        while (!lights.stats().writes && std::chrono::steady_clock::now() < deadline) std::this_thread::sleep_for(1ms);
+        lights.stopWithoutRestore();
+        assert(lights.stats().writes == 1 && usb->rgbConfig != baseline);
+    }
+    assert(usb->rgbConfig != baseline); // Destructor must not touch absent hardware.
+    usb->profile = 3; usb->rawData = 1; usb->fail = true;
+    assert(!saved.recover(apex, error) && saved.pending && saved.rgb == baseline);
+    usb->fail = false; usb->failRouting = true; error.clear();
+    assert(!saved.recover(apex, error) && saved.pending && saved.rgb == baseline);
+    assert(usb->rgbConfig == baseline && usb->profile == 1);
+    usb->failRouting = false; error.clear();
+    assert(saved.recover(apex, error) && !saved.pending && !saved.rgb);
+    assert(usb->rgbConfig == baseline && usb->profile == 1 && usb->controllerData && !usb->rawData);
+    const auto writes = usb->writes.size();
+    assert(saved.recover(apex, error) && usb->writes.size() == writes);
+    saved.pending = true; saved.model = 134;
+    assert(!saved.recover(apex, error) && saved.pending && usb->writes.size() == writes);
 }
 
 void busyFeedbackInputTests() {
@@ -598,6 +647,7 @@ int main() {
     descriptorTests();
     reportTests();
     rgbTests();
+    reconnectSettingsTests();
     busyFeedbackInputTests();
     uhidTests();
     std::cout << "Linux HID/UHID bridge tests passed\n";

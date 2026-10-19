@@ -13,6 +13,7 @@ trap 'rm -rf -- "$staging_dir"' EXIT
 mkdir -p -- "$staging_dir/$package_name/source" "$staging_dir/$package_name/bin"
 git -C "$repo_dir" archive HEAD | tar -x -C "$staging_dir/$package_name/source"
 install -m 0755 "$build_dir/ApexSenseBridge" "$staging_dir/$package_name/bin/ApexSenseBridge"
+install -m 0755 "$repo_dir/scripts/apexsensebridge-steam" "$staging_dir/$package_name/bin/apexsensebridge-steam"
 cp -- "$repo_dir/README.md" "$repo_dir/LICENSE" "$repo_dir/THIRD_PARTY_NOTICES.md" "$staging_dir/$package_name/"
 cp -R -- "$repo_dir/packaging" "$repo_dir/docs" "$staging_dir/$package_name/"
 printf '%s\n' "$revision" > "$staging_dir/$package_name/SOURCE-COMMIT"

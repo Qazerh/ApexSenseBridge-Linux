@@ -45,19 +45,34 @@ RGB follows colors sent by the game to the virtual DualSense lightbar. It does
 not add effects to games that do not send lightbar commands. The bridge backs
 up the Apex 5 lighting configuration and restores it on exit.
 
-## Build
+## Build and install
 
 Requirements: Linux with `hidraw`, `uhid`, `evdev` and `hid-playstation`, a C++20
-compiler, CMake 3.20+, Make or Ninja, and Python 3 for the full test suite. There
-are no additional runtime library dependencies beyond the C/C++ system runtime.
+compiler, CMake 3.20+, Make or Ninja, and Python 3 for the test suite and Steam
+launcher. The native bridge needs only the C/C++ system runtime.
 
 ```sh
 git clone https://github.com/RafaelDiasCampos/ApexSenseBridge-Linux.git
 cd ApexSenseBridge-Linux
-cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release
-cmake --build build-linux --parallel
-ctest --test-dir build-linux --output-on-failure
+make
+make test
+sudo make install
+sudo make install-udev
 ```
+
+`make install` installs `ApexSenseBridge` and `apexsensebridge-steam` in
+`/usr/local/bin`, plus licenses and setup files in `/usr/local/share/ApexSenseBridge`.
+Build as your normal user first; the install target never compiles as root.
+`install-udev` installs the device permission rule and a module-load file for
+future boots. Complete the one-time setup below before running.
+
+For a user-only binary installation, use `make install PREFIX="$HOME/.local"`;
+the system device-permission setup still needs administrator access. CMake users
+can keep using `cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release`,
+`cmake --build build-linux --parallel` and `cmake --install build-linux --prefix PATH`.
+`BUILD_DIR`, `BUILD_TYPE`, `JOBS`, `PREFIX` and staging `DESTDIR` are configurable
+in the Makefile. Use `-DBUILD_TESTING=OFF` with CMake to build only the native
+bridge without the Python test dependency.
 
 The [build action](https://github.com/RafaelDiasCampos/ApexSenseBridge-Linux/actions/workflows/linux.yml)
 compiles and tests Debug and Release builds on Ubuntu 24.04. Its downloadable
@@ -69,7 +84,7 @@ replace hardware testing.
 ## Create a release manually
 
 Open **[Actions → Linux release](https://github.com/RafaelDiasCampos/ApexSenseBridge-Linux/actions/workflows/release.yml)
-→ Run workflow**. Select `main`, enter a new tag such as `linux-v9`, optionally
+→ Run workflow**. Select `main`, enter a new tag such as `linux-v10`, optionally
 mark it as a prerelease, and run it. The workflow builds and tests the selected
 revision, then creates the tag and publishes a GitHub release with the Linux
 package and SHA-256 checksum. Existing tags/releases are never overwritten.
@@ -82,7 +97,7 @@ aligned with your chosen release series when preparing later versions.
 From the repository directory:
 
 ```sh
-sudo install -m 0644 packaging/linux/70-apexsensebridge.rules /etc/udev/rules.d/70-apexsensebridge.rules
+sudo make install-udev
 sudo modprobe uhid
 sudo modprobe hid-playstation
 sudo udevadm control --reload-rules
@@ -93,34 +108,88 @@ sudo udevadm settle
 Reconnect the controller/receiver, then run the bridge as your normal desktop
 user. The rules grant the active local desktop session access, rather than
 making every input device world-writable. Headless sessions need their own
-ACL/group configuration. If UHID is not loaded after reboot, load it again or
-add `uhid` to `/etc/modules-load.d/apexsensebridge.conf`.
+ACL/group configuration. `install-udev` also loads the required modules at
+future boots through `/etc/modules-load.d/apexsensebridge.conf`. It does not reload rules or reconnect
+devices automatically.
 
 ## Play
 
 ```sh
-./build-linux/ApexSenseBridge list
-./build-linux/ApexSenseBridge test-triggers
-./build-linux/ApexSenseBridge
+ApexSenseBridge list
+ApexSenseBridge test-triggers
+ApexSenseBridge
 ```
 
 Start the bridge before the game. In Steam, choose the game's **Properties →
 Controller → Disable Steam Input** so native DualSense feedback can reach the
 bridge. Enable adaptive triggers in the game if it has a setting. Keep the
 bridge running; **Ctrl+C stops it and restores controller settings**. No special
-Steam launch options were needed in the confirmed Overwatch setup.
+HID override launch options were needed in the confirmed Overwatch setup.
+
+The bridge waits quietly when no controller is connected, rescanning every
+half-second. If the controller sleeps or disconnects, it releases virtual
+buttons/triggers, keeps the same virtual DualSense alive, and resumes after
+reconnection. Game trigger effects and the last lightbar color are retained;
+old rumble is not replayed. Original Apex 5 settings are restored before starting
+a fresh session, so an interrupted RGB/profile change does not become the new
+baseline. No per-input scan delay is added.
+
+After the first connection, selection follows the same USB device by serial
+or USB location, even if its `/dev/hidrawN` number changes. For devices without a
+unique serial, reconnect to the same USB port. Switching from cable to receiver,
+pairing a different model, or choosing another controller may require a restart.
+`--once` retains the old one-shot behavior for troubleshooting. `--seconds N`
+limits the entire bridge lifetime, including time spent waiting.
+
+## Start automatically with a Steam game
+
+After installation and device setup, open the game's **Properties → General →
+Launch Options** and enter:
+
+```text
+/usr/local/bin/apexsensebridge-steam -- %command%
+```
+
+Also set **Properties → Controller → Disable Steam Input**, and enable native
+adaptive triggers in the game when available. The launcher starts the bridge,
+waits until the virtual DualSense is ready, runs Steam's game/Proton command,
+and stops the bridge with normal settings restoration when that command exits.
+If no controller is present, Steam stays in its launching state until you connect
+or wake one. Steam's Stop button cancels the wait. Close any manually running
+bridge before using this launcher.
+
+Bridge settings go before `--`. Existing game wrappers go after it:
+
+```text
+/usr/local/bin/apexsensebridge-steam --touchpad-profile warframe -- %command%
+/usr/local/bin/apexsensebridge-steam --strength 75 -- gamemoderun %command%
+/usr/local/bin/apexsensebridge-steam --startup-timeout 30 -- %command%
+```
+
+The optional startup timeout aborts without starting the game if the controller
+is not ready in time; the default waits indefinitely. Use an absolute path for a
+custom installation, for example `/home/you/.local/bin/apexsensebridge-steam`.
+Quote paths containing spaces. The bridge log is overwritten each run at
+`~/.local/state/apexsensebridge/steam-APPID.log` (or under `$XDG_STATE_HOME`);
+`--log /absolute/path.log` selects a different file. The launcher keeps Steam's
+environment for the game and removes runtime library overrides only from the
+native bridge. Games whose launch command exits immediately after spawning a
+separate launcher may need the bridge run manually instead. Flatpak Steam needs
+access to the installed binaries, Python and controller nodes; these host launch
+instructions assume a native Steam installation. Valve documents the
+[Launch Options field](https://help.steampowered.com/en/faqs/view/7D01-D2DD-D75E-2955).
 
 Normal bridge runs print startup, shutdown, warnings and errors. They do not
 continually print statistics or trigger effects. Add `--verbose` to see those:
 
 ```sh
-./build-linux/ApexSenseBridge --verbose
-./build-linux/ApexSenseBridge --strength 75 --rumble-strength 50
-./build-linux/ApexSenseBridge --no-lightbar
-./build-linux/ApexSenseBridge --touchpad-profile warframe
-./build-linux/ApexSenseBridge --telemetry-json status.json
-./build-linux/ApexSenseBridge --trace-hid bridge-hid.log
-./build-linux/ApexSenseBridge --help
+ApexSenseBridge --verbose
+ApexSenseBridge --strength 75 --rumble-strength 50
+ApexSenseBridge --no-lightbar
+ApexSenseBridge --touchpad-profile warframe
+ApexSenseBridge --telemetry-json status.json
+ApexSenseBridge --trace-hid bridge-hid.log
+ApexSenseBridge --help
 ```
 
 Tracing and JSON status files are explicit opt-ins and work without `--verbose`.
@@ -128,12 +197,12 @@ Explicit diagnostic commands such as `input-status` and `test-gyro` display thei
 requested samples; `--json` provides machine-readable diagnostic output.
 
 ```sh
-./build-linux/ApexSenseBridge diagnose --json
-./build-linux/ApexSenseBridge identify --json
-./build-linux/ApexSenseBridge input-status --seconds 5
-./build-linux/ApexSenseBridge test-rumble --seconds 2
-./build-linux/ApexSenseBridge test-gyro
-./build-linux/ApexSenseBridge test-rgb --color 00AAFF
+ApexSenseBridge diagnose --json
+ApexSenseBridge identify --json
+ApexSenseBridge input-status --seconds 5
+ApexSenseBridge test-rumble --seconds 2
+ApexSenseBridge test-gyro
+ApexSenseBridge test-rgb --color 00AAFF
 ```
 
 Consult [Linux setup and troubleshooting](docs/linux.md) if permissions, Proton
@@ -147,7 +216,7 @@ when several supported controllers are connected.
 
 This Linux port does **not** implement the original Windows tray/GUI, game
 process detection, automatic game profiles, Playnite integration, Windows
-installer/driver management or automatic reconnection.
+installer/driver management.
 The checkout contains only the Linux runtime, tests, diagnostics, setup files
 and documentation. Upstream history and attribution remain available in Git.
 
@@ -165,8 +234,9 @@ bridge. This project does not inject into game processes.
 
 Cleanup handles normal exit, supported stop signals and errors. A power loss or
 `SIGKILL` cannot run cleanup; reconnect the controller if settings or effects
-remain active. Run `reset` to stop supported trigger/rumble effects, and restart
-the bridge after reconnecting a sleeping or disconnected device.
+remain active. Run `reset` to stop supported trigger/rumble effects. If you exit while the
+controller is absent, its settings cannot be restored; reconnect or power-cycle
+it. Reconnect checkpoints last only while the bridge process stays alive.
 
 ## Controller protocol and contributing
 

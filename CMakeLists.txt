@@ -36,6 +36,7 @@ add_library(asb_core STATIC
     src/platform/linux/InputPump.cpp
     src/platform/linux/EvdevInput.cpp
     src/platform/linux/EvdevRumble.cpp
+    src/platform/linux/BridgeLifecycle.cpp
     src/platform/linux/FeedbackBridge.cpp
     src/platform/linux/AsyncDiagnostics.cpp
     src/platform/linux/Options.cpp
@@ -56,7 +57,9 @@ target_compile_options(ApexSenseBridge PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(ApexSenseBridge PRIVATE asb_core)
 
 install(TARGETS ApexSenseBridge RUNTIME DESTINATION bin)
-install(FILES packaging/linux/70-apexsensebridge.rules DESTINATION share/ApexSenseBridge)
+install(PROGRAMS scripts/apexsensebridge-steam DESTINATION bin)
+install(FILES packaging/linux/70-apexsensebridge.rules packaging/linux/apexsensebridge.conf
+        DESTINATION share/ApexSenseBridge)
 install(FILES LICENSE THIRD_PARTY_NOTICES.md packaging/linux/VIIPER-LICENSE.txt
         DESTINATION share/ApexSenseBridge/licenses)
 
@@ -71,6 +74,7 @@ if(BUILD_TESTING)
 
     asb_test(ApexSenseBridgeLinuxTests linux_hid_uhid_bridge tests/test_linux_bridge.cpp)
     asb_test(ApexSenseBridgeLinuxFeatureTests linux_features tests/test_linux_features.cpp)
+    asb_test(ApexSenseBridgeLinuxReconnectTests linux_reconnect tests/test_linux_reconnect.cpp)
     asb_test(ApexSenseBridgeLinuxLatencyTests linux_input_latency tests/test_linux_latency.cpp)
     asb_test(ApexSenseBridgeLinuxModelTests linux_controller_models tests/test_linux_models.cpp)
     asb_test(ApexSenseBridgeTests protocol tests/test_protocol.cpp)
@@ -86,8 +90,11 @@ if(BUILD_TESTING)
     asb_test(ApexSenseBridgeTouchpadGestureProfileTests touchpad_gesture_profiles tests/test_touchpad_gesture_profile.cpp)
 
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    add_test(NAME linux_steam_launcher COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_steam_launcher.py ${CMAKE_CURRENT_SOURCE_DIR}/scripts/apexsensebridge-steam)
     add_test(NAME linux_cli_contract COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_linux_cli.py $<TARGET_FILE:ApexSenseBridge>)
+    set_tests_properties(linux_reconnect linux_steam_launcher linux_cli_contract PROPERTIES TIMEOUT 30)
     add_test(NAME linux_cli_help COMMAND ApexSenseBridge --help)
     add_test(NAME linux_cli_invalid_strength COMMAND ApexSenseBridge bridge --strength 101)
     set_tests_properties(linux_cli_invalid_strength PROPERTIES WILL_FAIL TRUE)

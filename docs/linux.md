@@ -10,7 +10,7 @@ FORCEADAPT effects, forwards standard rumble to the grip motors, and synchronize
 the Apex 5 RGB with the game's lightbar color.
 No GUI, game detection, Windows drivers, VIIPER server or account is required.
 
-The **Linux v9** [feature guide](linux-features.md) covers manual touchpad
+The **Linux v10** [feature guide](linux-features.md) covers manual touchpad
 shortcuts, temporary onboard profiles, battery updates, expanded hardware
 tests, JSON diagnostics and session telemetry. Run `--version` to check the build.
 The v7 [input latency changes](linux-latency.md) are enabled automatically:
@@ -135,15 +135,15 @@ reduce the frame rate. This substantially reduces stepping in animations but
 does not promise a particular hardware refresh rate. The current profile's full lighting configuration is
 backed up before accepting game output and restored on normal shutdown or
 errors. Use `bridge --no-lightbar` to keep the original lighting throughout.
-If the initial backup fails, the bridge stops before changing RGB; reconnect
+If the initial backup fails, the bridge waits before changing RGB; reconnect
 the controller or run with `--no-lightbar` while investigating.
 
 Input has its own read-only hidraw open and report queue. RGB command exchanges
 cannot drain button/stick/motion samples, and trigger/rumble callbacks enqueue
 their writes instead of waiting on an RGB transfer. Keeping a WebHID tester
 open during bridge startup or using a continuous rainbow should therefore not
-cause a false stale-input timeout. Actual missing input still stops the session
-after 1.5 seconds. The input isolation fix is retained in the current `v9` build.
+cause a false stale-input timeout. A missing raw stream is detected after 1.5 seconds and the bridge then waits
+for the controller, keeping the virtual pad connected with neutral input. The input isolation fix is retained in the current `v10` build.
 
 When the bridge prints `Bridge running`, launch the game:
 
@@ -236,9 +236,9 @@ Use `--telemetry-json status.json` for atomic status/error snapshots, and
 | Grab fails/busy | Close Steam/controller tools and restart the bridge before the game. Check permissions on the listed event node. |
 | Raw input did not start | Reconnect the pad/receiver; close any other program configuring Flydigi routing. |
 | Test works, game has no effects | Check native DualSense support, Steam Input and the game's settings. Proton/Wine must pass HID output to the virtual pad. This varies by game. |
-| Controller sleeps/unplugs | The bridge stops; wake/reconnect it and start again. |
+| Controller sleeps/unplugs | The bridge waits and resumes automatically; wake/reconnect the same controller. |
 | Trigger effect remains after a forced kill | Run `./build-linux/ApexSenseBridge reset`, or power-cycle the controller. |
-| No rumble | Run `test-rumble`; in the tester select the virtual DualSense and use its heavy/light rumble controls. Check `rumble_updates` / `rumble_writes` in a v9 trace. |
+| No rumble | Run `test-rumble`; in the tester select the virtual DualSense and use its heavy/light rumble controls. Check `rumble_updates` / `rumble_writes` in a v10 trace. |
 | Old build stops while RGB updates | Restart with the current build, which separates input from RGB command replies; `--no-lightbar` remains available for diagnosis. |
 
 On Ctrl+C, SIGTERM, SIGHUP, startup failure or normal errors, the program removes
@@ -250,8 +250,35 @@ It does not write saved profiles to flash. The kernel releases evdev grabs and
 destroys UHID devices when the process exits, including after a crash.
 
 SIGKILL/power loss cannot restore physical controller settings. Reconnect or
-power-cycle it if input routing or resistance remains changed. If a disconnected
-controller cannot accept cleanup writes, the error is reported.
+power-cycle it if input routing or resistance remains changed. If you stop while the controller is absent, the warning states that physical
+settings could not be restored. While the bridge remains running, its in-memory
+checkpoint restores the original profile, routing and lighting before resuming.
+
+## Installation, Steam and reconnection
+
+See the [README install and launch instructions](../README.md#build-and-install)
+for `make`, `sudo make install`, `sudo make install-udev`, and the one-time module
+and permission setup. Native Steam launch options after installation:
+
+```text
+/usr/local/bin/apexsensebridge-steam -- %command%
+```
+
+Keep Steam Input disabled. The launcher waits for bridge readiness and owns its
+bridge process until the game command exits. It does not attach to or terminate
+a separately running bridge. See the [Steam examples](../README.md#start-automatically-with-a-steam-game)
+for settings, logging, timeouts and custom paths.
+
+Default bridge mode scans every 500 ms if no controller is present. On physical
+input failure it sends neutral virtual input, answers UHID requests while waiting,
+and retries the same verified USB controller. Replugging can change hidraw
+numbers; serial/USB location matching follows it. Without a unique serial, use
+the same USB port. Switching connection transport or controller model may require
+a restart. The same UHID device survives each reconnect, preserving game handles.
+Game trigger/lightbar state is cached; transient rumble is not replayed. The
+active input pump still forwards fresh samples immediately without a scan timer.
+Use `--once` for fail-fast diagnostics; other test/identify commands remain
+one-shot. A timed bridge includes waiting time in its limit.
 
 ## Scope and limitations
 
@@ -300,13 +327,13 @@ substitute for physical HID and `/dev/uhid`; the real trigger translator,
 lighting worker and Apex packet encoders are exercised.
 Additional tests cover Linux option/JSON contracts, synthetic touch reports,
 battery updates, temporary profile restoration after a lost ACK and atomic
-telemetry. Python is optional for the CLI contract test; the bridge itself
-still requires no extra runtime libraries.
+telemetry. Python 3 runs the CLI/launcher tests and the Steam launcher; the native bridge
+itself still requires no extra runtime libraries.
 
 For a hardware acceptance run, verify: direct resistance on LT and RT; all
 buttons/sticks and simultaneous LT+RT in a controller tester; game-trigger
-translations; Ctrl+C restoring ordinary input; unplug/sleep ending the bridge;
-and relaunch after reconnecting. Record the controller firmware, connection mode,
+translations; Ctrl+C restoring ordinary input; unplug/sleep releasing all virtual controls;
+and input/feedback resuming in the same game after reconnecting. Record the controller firmware, connection mode,
 kernel and game/Proton version when reporting a failure.
 
 See `THIRD_PARTY_NOTICES.md` for the Linux executable's GPL-3.0 license and the

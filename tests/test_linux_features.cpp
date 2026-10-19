@@ -56,6 +56,8 @@ void bad(std::initializer_list<std::string_view> args) {
 
 void optionTests() {
     assert(!options({}).verbose);
+    assert(!options({}).once && options({"--once"}).once);
+    bad({"identify", "--once"});
     assert(options({"--verbose"}).verbose);
     assert(options({"list", "--json", "--verbose"}).json);
     auto o = options({"bridge-triggers", "--trigger-strength", "75", "--vibration-strength", "150", "--apex-profile", "4",

@@ -24,6 +24,12 @@ LightbarBridge::~LightbarBridge() {
     restore();
 }
 
+void LightbarBridge::stopWithoutRestore() {
+    if (running_.exchange(false, std::memory_order_relaxed)) cv_.notify_all();
+    if (worker_.joinable()) worker_.join();
+    restored_ = true;
+}
+
 void LightbarBridge::restore() {
     if (running_.exchange(false, std::memory_order_relaxed)) {
         cv_.notify_all();

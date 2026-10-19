@@ -9,7 +9,7 @@ virtual DualSense, and stop it with Ctrl+C. Upstream game and onboard profiles
 are selected explicitly. Normal bridge mode still starts with touchpad profile
 `none`, your current onboard slot, 100% strengths, and RGB/rumble enabled.
 
-Linux v9 forwards each fresh button/stick/motion sample immediately, preserves
+Linux v10 forwards each fresh button/stick/motion sample immediately, preserves
 adjacent press/release edges, and moves diagnostic I/O to a bounded background
 queue. These optimizations are always enabled. See [input latency](linux-latency.md)
 for details, the software-only measurement and its limits.
@@ -33,11 +33,13 @@ for details, the software-only measurement and its limits.
 | Independent grip-motor tests | `test-rumble --left 0..255 --right 0..255` |
 | Custom RGB test | `test-rgb --color 33AAFF --seconds 2` |
 | Session telemetry | `bridge --telemetry-json status.json` |
+| Wait/reconnect | Enabled by default; `--once` disables retries |
+| Steam game launcher | Installed `apexsensebridge-steam -- %command%` |
 | Bounded bridge runs | `bridge --seconds 60`; normal cleanup runs at the end |
 
 `bridge-triggers`, `test-trigger`, `test-input` and `clear` are aliases for
 `bridge`, `test-triggers`, `input-status` and `reset`. `--version` identifies
-this build as **Linux v9**. Hardware tests last 1–30 seconds; a timed bridge
+this build as **Linux v10**. Hardware tests last 1–30 seconds; a timed bridge
 may run for 1–86400 seconds. Trigger tests default to mild level 1.
 
 ## Touchpad shortcuts
@@ -96,10 +98,11 @@ restore settings afterward. JSON input samples are one object per line.
 ```
 
 Telemetry is a single JSON snapshot, replaced atomically at startup, when the
-bridge becomes ready, every five seconds, and on final stop/error. Ready/periodic
+bridge becomes ready, enters waiting/reconnecting, every five seconds while
+active, and on final stop/error. State transitions are queued reliably; periodic
 updates run in the background and are best effort under diagnostic overload;
 startup and final/error snapshots are written synchronously. It includes
-phase, error, cleanup result, battery, profile selection, input/feedback counts,
+phase, connection count, error, cleanup result, battery, profile selection, input/feedback counts,
 USB writes/coalescing/retries, touchpad activity and battery-request failures.
 `input_forwarded` counts fresh samples sent immediately to UHID;
 `input_heartbeats` counts repeats during quiet periods. `diagnostic_drops` counts
@@ -111,8 +114,11 @@ existing hard-link/symlink aliases. `cleanup_ok` is true only after restoration
 has been confirmed or no settings required restoration.
 
 Ctrl+C, SIGTERM, SIGHUP, closed output pipes, normal errors and timed completion
-use the cleanup path. Actual disconnects or SIGKILL/power loss can prevent
-hardware restoration; wake/reconnect and restart the bridge or use `reset`.
+use the cleanup path. Physical disconnects enter a quiet reconnect loop while
+the virtual controller remains connected and neutral. Original Apex 5 profile,
+routing and RGB checkpoints are restored before another session begins; game
+trigger/color state is replayed, but rumble is not. Exiting while absent or using
+SIGKILL/power loss prevents physical restoration; reconnect or use `reset`.
 
 ## Deliberate limits
 
@@ -126,4 +132,6 @@ do not certify each game's Proton compatibility.
 The Linux tests cover the original mapper, its Linux USB report path, profile
 restoration after a lost ACK, battery updates, gain clipping, CLI contracts,
 JSON snapshots, rapid input edges, feedback fairness, a blocked diagnostic
-worker and the existing busy RGB/trigger/rumble input tests. Added Apex 4/6 model paths still require physical/game acceptance testing.
+worker and the existing busy RGB/trigger/rumble input tests. Reconnect tests
+exercise stable UHID handles, neutral controls, feature replies while absent,
+settings checkpoints across repeated failures and Steam launcher lifecycle. Added Apex 4/6 model paths still require physical/game acceptance testing.

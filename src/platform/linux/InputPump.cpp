@@ -17,6 +17,7 @@ InputPump::InputPump(EvdevInput& input, InputPipeline& pipeline, UhidDevice& pad
     : evdev_(&input), pipeline_(pipeline), pad_(pad), physical_(initial) {}
 
 bool InputPump::step(const UhidDevice::Handler& feedback, const Observer& observer, std::string& error) {
+    physicalFailure_ = false;
     // Either descriptor wakes the same wait immediately. Only quiet periods
     // use the 1 ms heartbeat timer (touch gestures and sensor/host timestamps).
     const auto remaining = evdev_ && evdev_->buffered() ? Clock::duration::zero()
@@ -30,6 +31,7 @@ bool InputPump::step(const UhidDevice::Handler& feedback, const Observer& observ
     if (result < 0) { error = "Cannot wait for controller input: " + std::string(std::strerror(errno)); return false; }
     for (const auto& entry : ready) {
         if (entry.revents & (POLLERR | POLLHUP | POLLNVAL)) {
+            physicalFailure_ = entry.fd == inputFd;
             error = entry.fd == inputFd ? "Apex input stream disconnected" : "UHID connection closed";
             return false;
         }
@@ -42,7 +44,7 @@ bool InputPump::step(const UhidDevice::Handler& feedback, const Observer& observ
         std::size_t size = 0;
         std::optional<dualsense::DualSenseInputState> state;
         const auto status = input_ ? input_->read(packet, 0ms, size, error) : evdev_->read(state, error);
-        if (status == HidReadStatus::Error) return false;
+        if (status == HidReadStatus::Error) { physicalFailure_ = true; return false; }
         if (status != HidReadStatus::Data) break;
         if (input_) state = pipeline_.decode({packet.data(), size});
         if (state) {
@@ -62,7 +64,8 @@ bool InputPump::step(const UhidDevice::Handler& feedback, const Observer& observ
     // Evdev is event-driven: an idle Apex 6 is healthy without repeated reports.
     // poll/read still catch removal. Raw Apex 4/5 streams must stay continuous.
     if (!evdev_ && now - lastInput_ >= 1500ms) {
-        error = "Apex input stopped; ending the session and clearing triggers. Wake it and rerun.";
+        physicalFailure_ = true;
+        error = "Apex input stopped; waiting for the controller to wake or reconnect.";
         return false;
     }
     if (!pad_.started()) { error = "Virtual DualSense stopped unexpectedly."; return false; }

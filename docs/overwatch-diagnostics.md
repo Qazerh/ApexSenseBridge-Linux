@@ -17,8 +17,10 @@ the request shape and verifies that trigger output can follow a successful
 setup. The user subsequently confirmed working input and adaptive triggers in
 Overwatch without launch-option changes. The successful trace showed feature
 `0x08` accepted and no unsupported trigger effects. The current build's trace
-header is `v9`, which retains the working setup support, independent input,
-smaller live RGB transfers and rumble, and adds battery/touchpad counters.
+header is `v10`, retaining the working setup support, independent input,
+smaller live RGB transfers, rumble and battery/touchpad counters. This build
+also waits for absent controllers and reconnects without replacing the virtual
+DualSense. See the README for installation and the optional Steam launcher.
 
 ## Capture a diagnostic run
 

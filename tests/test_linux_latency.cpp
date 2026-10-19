@@ -129,8 +129,12 @@ void blockedDiagnostics() {
     }
     // Input progresses even while the output worker and its full queue cannot.
     assert(observed == 256 && completed == 0);
-    release.set_value(); diagnostics.finish();
-    assert(completed == accepted && !diagnostics.failed());
+    std::atomic_bool requiredRan{false};
+    auto required = std::async(std::launch::async, [&] {
+        diagnostics.submitRequired([&] { assert(completed == accepted); requiredRan = true; });
+    });
+    release.set_value(); required.get(); diagnostics.finish();
+    assert(completed == accepted && requiredRan && !diagnostics.failed());
 
     AsyncDiagnostics failure;
     while (!failure.submit([] { throw std::runtime_error("disk full"); })) {}

@@ -53,7 +53,7 @@ struct SessionStatus {
     std::uint64_t inputForwarded = 0, inputHeartbeats = 0, diagnosticDrops = 0;
     std::string model, feedbackBackend;
     bool batteryAvailable = false, motionSupported = false, rgbSupported = false;
-    std::uint64_t hapticFrames = 0;
+    std::uint64_t hapticFrames = 0, connections = 0;
 };
 
 void printPeriodicStatus(std::ostream& out, const SessionStatus& status, bool verbose);

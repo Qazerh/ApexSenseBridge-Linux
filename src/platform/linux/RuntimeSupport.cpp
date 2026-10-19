@@ -72,7 +72,7 @@ void printPeriodicStatus(std::ostream& out, const SessionStatus& s, bool verbose
 
 std::string statusJson(const SessionStatus& s) {
     std::ostringstream o;
-    o << "{\"schema\":1,\"build\":\"linux-v9\",\"phase\":" << quote(s.phase)
+    o << "{\"schema\":1,\"build\":\"linux-v10\",\"phase\":" << quote(s.phase)
       << ",\"error\":" << quote(s.error) << ",\"device\":" << quote(s.device)
       << ",\"connection\":" << quote(s.connection) << ",\"touchpad_profile\":" << quote(s.touchpadProfile)
       << ",\"cleanup_ok\":" << (s.cleanupOk ? "true" : "false")
@@ -91,6 +91,7 @@ std::string statusJson(const SessionStatus& s) {
       << ",\"battery_available\":" << (s.batteryAvailable ? "true" : "false")
       << ",\"motion_supported\":" << (s.motionSupported ? "true" : "false")
       << ",\"rgb_supported\":" << (s.rgbSupported ? "true" : "false")
+      << ",\"connections\":" << s.connections
       << ",\"haptic_frames\":" << s.hapticFrames << '}';
     return o.str();
 }

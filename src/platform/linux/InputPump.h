@@ -22,6 +22,7 @@ public:
     InputPump(EvdevInput& input, InputPipeline& pipeline, UhidDevice& pad,
               const dualsense::DualSenseInputState& initial);
     bool step(const UhidDevice::Handler& feedback, const Observer& observer, std::string& error);
+    bool physicalFailure() const noexcept { return physicalFailure_; }
     InputPumpStats stats() const noexcept { return stats_; }
 private:
     InputStream* input_ = nullptr;
@@ -31,6 +32,7 @@ private:
     dualsense::DualSenseInputState physical_;
     Clock::time_point lastInput_ = Clock::now(), lastSent_ = lastInput_;
     InputPumpStats stats_;
+    bool physicalFailure_ = false;
 };
 
 } // namespace asb::platform::linux_backend
