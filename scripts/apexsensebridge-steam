@@ -3,7 +3,6 @@
 import argparse
 import os
 from pathlib import Path
-import re
 import shutil
 import signal
 import subprocess
@@ -17,9 +16,7 @@ def options(argv):
         usage="%(prog)s [bridge options] -- %%command%%",
     )
     parser.add_argument("--bridge", help="path to ApexSenseBridge (normally found beside this launcher)")
-    # Accept old launch options without reintroducing a controller-ready gate.
-    parser.add_argument("--startup-timeout", help=argparse.SUPPRESS)
-    parser.add_argument("--log", help="bridge log path (default: XDG state directory)")
+    parser.add_argument("--log", metavar="FILE", help="save bridge output to FILE (disabled by default)")
     if "--" not in argv:
         parser.parse_args(argv)  # Provide the usual --help response.
         parser.error("missing -- and the game command; in Steam use -- %command%")
@@ -61,9 +58,8 @@ def stop_bridge(bridge):
 
 def main(argv):
     args, bridge_args, command = options(argv)
-    app_id = re.sub(r"[^a-zA-Z0-9_.-]", "_", os.environ.get("SteamAppId", "game"))[:80] or "game"
-    state = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state")
-    log_path = Path(args.log).expanduser() if args.log else state / "apexsensebridge" / f"steam-{app_id}.log"
+    log_path = Path(args.log).expanduser() if args.log else None
+    log_hint = f" See {log_path}" if log_path else ""
     interrupted = 0
 
     def stopping(number, _frame):
@@ -76,8 +72,9 @@ def main(argv):
     try:
         try:
             executable = bridge_path(args.bridge)
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            with log_path.open("w") as log:
+            if log_path:
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+            with (log_path.open("w") if log_path else open(os.devnull, "w")) as log:
                 # Steam's runtime/overlay libraries are for the game. The native
                 # bridge uses host libraries; the game retains its original env.
                 bridge_env = os.environ.copy()
@@ -95,7 +92,7 @@ def main(argv):
         bridge_failure_reported = False
         while game.poll() is None and not interrupted:
             if bridge is not None and bridge.poll() is not None and not bridge_failure_reported:
-                print(f"Bridge stopped (status {bridge.returncode}); game continues. See {log_path}", file=sys.stderr)
+                print(f"Bridge stopped (status {bridge.returncode}); game continues.{log_hint}", file=sys.stderr)
                 bridge_failure_reported = True
             time.sleep(0.05)
         if interrupted:
@@ -110,7 +107,7 @@ def main(argv):
             return 128 + interrupted
         return game.returncode if game.returncode >= 0 else 128 - game.returncode
     except (OSError, RuntimeError) as error:
-        print(f"ApexSenseBridge Steam launcher: {error}. See {log_path}", file=sys.stderr)
+        print(f"ApexSenseBridge Steam launcher: {error}.{log_hint}", file=sys.stderr)
         return 1
     finally:
         stop_bridge(bridge)

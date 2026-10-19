@@ -167,13 +167,10 @@ Bridge settings go before `--`. Existing game wrappers go after it:
 /usr/local/bin/apexsensebridge-steam --strength 75 -- gamemoderun %command%
 ```
 
-Old `--startup-timeout` options are accepted but ignored; the launcher always
-starts the game immediately. Use an absolute path for a custom installation,
-for example `/home/you/.local/bin/apexsensebridge-steam`.
-Quote paths containing spaces. The bridge log is overwritten each run at
-`~/.local/state/apexsensebridge/steam-APPID.log` (or under `$XDG_STATE_HOME`);
-`--log /absolute/path.log` selects a different file. The launcher keeps Steam's
-environment for the game and removes runtime library overrides only from the
+Use an absolute path for a custom installation, for example
+`/home/you/.local/bin/apexsensebridge-steam`. Quote paths containing spaces. Logging is disabled by default; bridge output is
+discarded. Add `--log /absolute/path.log` before `--` to save bridge output to a
+file, overwritten each run. The launcher keeps Steam's environment for the game and removes runtime library overrides only from the
 native bridge. Games whose launch command exits immediately after spawning a
 separate launcher may need the bridge run manually instead. Flatpak Steam needs
 access to the installed binaries, Python and controller nodes; these host launch

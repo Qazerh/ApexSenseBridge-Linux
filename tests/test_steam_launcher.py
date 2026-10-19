@@ -23,6 +23,8 @@ def stop(*_):
 signal.signal(signal.SIGTERM, stop)
 signal.signal(signal.SIGINT, stop)
 (root / 'bridge-start.json').write_text(json.dumps({'args':sys.argv[1:], 'preload':os.environ.get('LD_PRELOAD'), 'libs':os.environ.get('LD_LIBRARY_PATH')}))
+print('bridge stdout', flush=True)
+print('bridge stderr', file=sys.stderr, flush=True)
 if os.environ.get('ASB_TEST_FAIL'):
     sys.exit(7)
 if os.environ.get('ASB_TEST_CONNECT_DURING_GAME'):
@@ -61,14 +63,16 @@ sys.exit(int(os.environ.get('ASB_TEST_GAME_EXIT', '0')))
     assert played['args'] == ['path with spaces', '$(literal)', '--flag']
     assert played['preload'] == env['LD_PRELOAD'] and played['libs'] == env['LD_LIBRARY_PATH']
     assert (root / 'bridge-stop').exists() and not played['bridge_ready']
-    assert (root / 'state/apexsensebridge/steam-123.log').is_file()
+    assert not (root / 'state').exists()  # No default log directory or file.
+    reset()
+    log = root / 'logs/explicit bridge.log'
+    result = subprocess.run([*base, '--log', str(log), '--', *command], env=env, capture_output=True, text=True, timeout=8)
+    assert result.returncode == 0 and not result.stdout and not result.stderr, result
+    assert log.read_text() == 'bridge stdout\nbridge stderr\n'
+    assert (root / 'bridge-stop').exists()
     reset()
     result = subprocess.run([*base, '--', *command], env={**env, 'ASB_TEST_GAME_EXIT':'9'}, capture_output=True, text=True, timeout=8)
     assert result.returncode == 9 and (root / 'bridge-stop').exists(), result
-    reset()
-    result = subprocess.run([*base, '--startup-timeout', '0.3', '--', *command], env=env, capture_output=True, text=True, timeout=8)
-    assert result.returncode == 0 and not result.stderr and (root / 'game.json').exists(), result
-    assert (root / 'bridge-stop').exists()
     reset()
     result = subprocess.run([*base, '--', *command], env={**env, 'ASB_TEST_FAIL':'1'}, capture_output=True, text=True, timeout=8)
     assert result.returncode == 0 and 'status 7' in result.stderr and (root / 'game.json').exists(), result
@@ -101,7 +105,7 @@ sys.exit(int(os.environ.get('ASB_TEST_GAME_EXIT', '0')))
                 child.kill()
                 child.wait()
     reset()
-    for args in ([], ['--', ''], ['--once', '--', 'true'], ['--startup-timeout'], ['--seconds', '1', '--', 'true']):
+    for args in ([], ['--', ''], ['--once', '--', 'true'], ['--seconds', '1', '--', 'true']):
         result = subprocess.run([*base, *args], env=env, capture_output=True, text=True, timeout=4)
         assert result.returncode != 0 and not (root / "bridge-start.json").exists(), (args, result)
-print('Steam wrapper immediate launch without a controller, late readiness, bridge failures, argv/environment and cleanup passed')
+print('Steam wrapper immediate launch without a controller, late readiness, bridge failures, opt-in logging, argv/environment and cleanup passed')
