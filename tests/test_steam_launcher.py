@@ -91,7 +91,8 @@ sys.exit(int(os.environ.get('ASB_TEST_GAME_EXIT', '0')))
             if child.poll() is None:
                 child.kill()
                 child.wait()
+    reset()
     for args in ([], ['--', ''], ['--once', '--', 'true'], ['--startup-timeout', 'nan', '--', 'true'], ['--telemetry-json', 'x', '--', 'true']):
-        result = subprocess.run([sys.executable, str(launcher), *args], capture_output=True, text=True, timeout=4)
-        assert result.returncode != 0, (args, result)
+        result = subprocess.run([*base, *args], env=env, capture_output=True, text=True, timeout=4)
+        assert result.returncode != 0 and not (root / "bridge-start.json").exists(), (args, result)
 print('Steam wrapper readiness, argv/environment, exit codes, timeout and stop cleanup passed')

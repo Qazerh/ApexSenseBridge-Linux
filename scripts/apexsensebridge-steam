@@ -30,7 +30,7 @@ def options(argv):
     args, bridge_args = parser.parse_known_args(argv[:separator])
     if not math.isfinite(args.startup_timeout) or args.startup_timeout < 0:
         parser.error("--startup-timeout must be a finite number of seconds >= 0")
-    if not argv[separator + 1:]:
+    if not argv[separator + 1:] or not argv[separator + 1]:
         parser.error("missing game command after --")
     for arg in bridge_args:
         if arg.split("=", 1)[0] in {"--telemetry-json", "--seconds", "--once", "--version", "--help", "-h"}:
