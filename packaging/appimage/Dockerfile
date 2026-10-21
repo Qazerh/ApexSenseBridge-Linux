@@ -17,6 +17,7 @@ WORKDIR /src
 COPY CMakeLists.txt LICENSE THIRD_PARTY_NOTICES.md /src/
 COPY src /src/src
 COPY tests /src/tests
+COPY scripts /src/scripts
 COPY packaging/linux /src/packaging/linux
 RUN cmake -S . -B /build -G Ninja -DCMAKE_BUILD_TYPE=Release \
     && cmake --build /build --parallel 4 \
