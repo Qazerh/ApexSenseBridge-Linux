@@ -1,0 +1,654 @@
+#!/usr/bin/env python3
+
+# SPDX-FileCopyrightText: 2026 Mikalai Kaliaha
+#
+# SPDX-License-Identifier: MIT
+
+"""Polling daemon: detect a running game, apply its trigger config, reset on exit.
+
+Mirrors Flydigi's own AdapterTriggerRunner.CheckGameRunning (1 s poll on process
+names). Covers launchers the Steam wrapper cannot -- Heroic, umu, standalone.
+
+Detection reaches every entry: 72 of the 94 carry only the singular
+processGameName with an empty processGameNames list, and games.process_index()
+indexes both. tools/flydigi-run is a convenience -- instant, no 1 s lag, and it
+survives a renamed process -- not a coverage requirement.
+"""
+import argparse
+import os
+import subprocess
+import signal
+import sys
+import time
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+
+from flydigi import device, effects, games, monitor, prefs, registry  # noqa: E402
+from flydigi.device import DeviceNotFound  # noqa: E402
+
+
+def log(msg):
+    print(f"[flydigid] {msg}", flush=True)
+
+
+def candidate_names(pid):
+    """Names a process might be known by, lowercased and extension-stripped.
+
+    Proton games appear as a Windows path inside cmdline, so the basename of
+    every argument is checked, not just comm.
+    """
+    out = set()
+    try:
+        with open(f"/proc/{pid}/comm") as fh:
+            out.add(fh.read().strip().lower())
+    except OSError:
+        return out
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as fh:
+            parts = fh.read().split(b"\0")
+    except OSError:
+        parts = []
+    for raw in parts:
+        if not raw:
+            continue
+        token = raw.decode("utf-8", "replace").replace("\\", "/")
+        base = os.path.basename(token).strip().lower()
+        if base:
+            out.add(base)
+            if base.endswith(".exe"):
+                out.add(base[:-4])
+    return out
+
+
+class Scanner:
+    """Which known games are running, examining each process only once.
+
+    The first version re-read /proc/<pid>/comm and /proc/<pid>/cmdline for
+    every process every second. Measured on an idle desktop of ~590 processes
+    that cost 15.4s of CPU over 10 minutes -- about 2.5% of a core, spent
+    almost entirely re-reading processes already ruled out. It hardly mattered
+    when the daemon was something you started for a session; it matters once it
+    starts at login and never stops.
+
+    So processes are examined when they first appear and remembered after that.
+    Steady state is one readdir of /proc per second.
+
+    Recycled pids are not a hazard here: a pid is only skipped while it is
+    continuously present, so missing one would need the kernel to wrap all of
+    pid_max inside a single poll interval.
+    """
+
+    def __init__(self, index):
+        self.index = index
+        self.seen = set()
+        self.matches = {}
+
+    def _match(self, entry):
+        """(game, confidence) for a pid, or None.
+
+        Confidence matters because under Proton a whole chain matches by name.
+        Starting Dark Souls: Remastered produced eight matching processes --
+        reaper, steam-runtime-launcher, two bwraps, pv-adverb, a python3,
+        steam.exe and the game -- because every wrapper carries the game's path
+        in its command line. Taking the first by pid takes `reaper`, the
+        outermost wrapper, since it starts first.
+
+        For the pad-side route that is survivable: the preset is written once
+        and no one asks which process asked for it. For the memory route it is
+        fatal and silent -- a wrapper has no game memory in it, the pointer
+        chain reads zero, and zero is indistinguishable from "no effect".
+
+        So a process that actually mapped the executable, or whose own name is
+        the game's, beats one that merely mentions it. `comm` counts because
+        native Linux games have no PE to look for at all.
+        """
+        for name in candidate_names(entry):
+            game = self.index.get(name)
+            if game is not None:
+                return game, self._confidence(entry, name)
+        return None
+
+    @staticmethod
+    def _confidence(entry, matched):
+        """2 = it is the game, 1 = it calls itself that, 0 = it just mentions it."""
+        if monitor.has_executable_mapped(entry, matched):
+            return 2
+        try:
+            with open(f"/proc/{entry}/comm") as fh:
+                comm = fh.read().strip().lower()
+        except OSError:
+            return 0
+        # comm is truncated to 15 characters -- the real Dark Souls process is
+        # "DarkSoulsRemast" -- so a prefix is as much as can be asked for.
+        stem = matched[:-4] if matched.endswith(".exe") else matched
+        if comm and (stem.startswith(comm) or comm.startswith(stem)):
+            return 1
+        return 0
+
+    def refresh(self):
+        """Return {pid: (game, confidence)} for every known game running."""
+        current = {e for e in os.listdir("/proc") if e.isdigit()}
+        for entry in current - self.seen:
+            found = self._match(entry)
+            if found is not None:
+                self.matches[int(entry)] = found
+        # A process can be in /proc before Wine has mapped the PE, so a match
+        # filed as weak is asked again. Only matched pids are re-examined --
+        # a handful, against the hundreds the first sweep looks at.
+        for pid, (game, confidence) in list(self.matches.items()):
+            if confidence < 2:
+                found = self._match(str(pid))
+                if found is not None:
+                    self.matches[pid] = found
+        for entry in self.seen - current:
+            self.matches.pop(int(entry), None)
+        self.seen = current
+        return self.matches
+
+    def candidate(self):
+        """(game, pid-of-the-game-itself-or-None) for what appears to be running.
+
+        Two different questions, and only one of them is usually interesting.
+        *Which game is running* needs no ranking at all -- every process in the
+        chain agrees on that, which is the whole point of matching by name.
+
+        The pid is returned separately and only when a process has really
+        mapped the executable, because one route cares: `flydigi-monitor` looks
+        the game up itself and gives up if the PE is not there yet. Started
+        while only wrappers are up, it exits immediately -- and a driver that
+        exits on its own only gets DRIVER_RESTARTS attempts, so auto mode would
+        spend them all on a game that was merely still loading.
+        """
+        if not self.matches:
+            return None, None
+        pid, (game, confidence) = max(self.matches.items(),
+                                      key=lambda kv: (kv[1][1], kv[0]))
+        return game, (pid if confidence >= 2 else None)
+
+    def is_running(self, game):
+        """Whether any process still says this game is up.
+
+        The wrapper chain comes and goes around the game -- reaper outlives it,
+        inner wrappers exit before it -- so watching one pid picks an arbitrary
+        moment to call it over. Nothing running at all is the honest signal.
+        """
+        return any(found is game for found, _ in self.matches.values())
+
+    def reset(self):
+        """Re-examine every process on the next refresh.
+
+        Needed after a preferences change: turning auto on for a game that is
+        already running has to take effect now, and that process was examined
+        and filed away long ago.
+        """
+        self.seen.clear()
+        self.matches.clear()
+
+
+# Routes whose driver looks the game up itself, so starting it before the game
+# has really launched makes it exit rather than wait.
+NEEDS_GAME_PROCESS = ("monitor",)
+
+# How often a driver may be restarted for one game before the daemon stops
+# trying, and how long it has to survive for that count to be forgiven.
+#
+# **Neither extreme is right, which is why there is a budget at all.** Never
+# restarting -- what the log line here used to claim, while the loop restarted
+# anyway -- leaves the route dead for the rest of the session the first time
+# anything disturbs it, and the thing that disturbs it most is the pad going to
+# sleep, which is ordinary and recovers by itself. Restarting forever respawns
+# a driver whose config a game patch broke once every poll for as long as the
+# game runs.
+#
+# `SETTLED` is what tells those apart without knowing why the driver exited: a
+# driver that ran for a minute and then stopped was working, so its failure is
+# a fresh one and the budget resets. A config that cannot work fails in the
+# same second every time and spends the budget in three polls.
+DRIVER_RESTARTS = 3
+DRIVER_SETTLED_SECONDS = 60.0
+
+
+def spend_restart(deaths, key, game, ran_for):
+    """Account for one driver death. Returns (attempts spent, start it again?).
+
+    `deaths` maps a game key to `(attempts, game)` and is updated in place. The
+    game is kept so the caller can drop the entry once that game stops running,
+    which is what gives a later launch a fresh budget.
+
+    A separate function because it is the only judgement in the loop, and a
+    policy nobody can run is a policy nobody can check.
+    """
+    spent, _ = deaths.get(key, (0, game))
+    if ran_for >= DRIVER_SETTLED_SECONDS:
+        spent = 0
+    spent += 1
+    deaths[key] = (spent, game)
+    return spent, spent <= DRIVER_RESTARTS
+
+
+def refused(deaths, key):
+    """Whether this game's driver has spent its restart budget."""
+    return deaths.get(key, (0, None))[0] > DRIVER_RESTARTS
+
+TOOLS = os.path.join(ROOT, "tools")
+MONITOR_CONFIGS = os.path.join(ROOT, "configs", "monitor")
+
+
+def monitor_config(game):
+    """The XGameMonitor config for a game, by process name.
+
+    `tools/fetch-configs` writes them as <ProcessName>.default.json, so the
+    lookup is by name rather than by a table that would have to be kept in step
+    with the 31 of them.
+    """
+    name = (game.get("processGameName") or "").strip().lower()
+    if not name:
+        return None
+    if name.endswith(".exe"):
+        name = name[:-4]
+    try:
+        entries = os.listdir(MONITOR_CONFIGS)
+    except OSError:
+        return None
+    for entry in entries:
+        if entry.lower().startswith(name + "."):
+            return os.path.join(MONITOR_CONFIGS, entry)
+    return None
+
+
+def driver_argv(game, route, pad=None):
+    """The helper to run beside a game, or None when there is nothing to run.
+
+    These are the same drivers `tools/` already ships and that were each
+    validated by hand; the daemon only starts and stops them.
+
+    `pad` is the primary pad's selector, passed straight through as `--device`.
+    Every driver holds one pad for the length of a session and rewrites its
+    trigger effects continuously, so on a two-pad desk the question "which one"
+    has an answer that is not "whichever node sorted first".
+    """
+    where = ["--device", pad] if pad else []
+    if route == "monitor":
+        config = monitor_config(game)
+        if config is None:
+            return None
+        return [sys.executable, os.path.join(TOOLS, "flydigi-monitor"),
+                config, "--quiet"] + where
+    if route == "telemetry":
+        return [sys.executable, os.path.join(TOOLS, "flydigi-forza"),
+                "--quiet"] + where
+    if route == "bespoke":
+        return [sys.executable, os.path.join(TOOLS, "flydigi-dsx"),
+                "--quiet"] + where
+    # DualSense mode is not here, and is not a route at all. It is a switch for
+    # the whole system (flydigi/dsmode.py, and the app's DualSense page): the
+    # virtual pad has to exist *before* a game enumerates pads, so acting on
+    # detection is already too late, and its attach needs an authentication that
+    # a daemon must not be able to perform unattended.
+    return None
+
+
+def _pad_identity(entry):
+    """Stable identity for reconnect tracking, from the shallow pad probe."""
+    mac = entry.get("mac")
+    return f"mac:{str(mac).lower()}" if mac else None
+
+
+def _binding_succeeded(results):
+    """Whether every side that was attempted acknowledged its bind."""
+    attempted = [ok for _side, ok in results if ok is not None]
+    return bool(attempted) and all(ok is True for ok in attempted)
+
+
+def _apply_bindings(game, pads):
+    """Apply to `pads`; return (any fully acknowledged, stable bound ids)."""
+    name = game.get("enGameName")
+    acknowledged = False
+    bound = set()
+    for entry in pads:
+        # The node too: with two pads and no nicknames set, "Apex 5" twice
+        # is a log nobody can act on.
+        label = f"{registry.label(entry)} ({entry['path']})"
+        try:
+            with registry.open_device(entry["path"], registry.KIND_PAD) as ctrl:
+                results = effects.apply_game(ctrl, game)
+        except (DeviceNotFound, OSError) as exc:
+            log(f"could not apply to {label}: {exc}")
+            continue
+        complete = _binding_succeeded(results)
+        acknowledged = acknowledged or complete
+        identity = _pad_identity(entry)
+        if complete and identity is not None:
+            bound.add(identity)
+        outcome = "applied" if complete else "bind incomplete"
+        log(f"{outcome} for {name} on {label}: " + ", ".join(
+            f"{s}={'ok' if ok else 'no-ack' if ok is False else 'skip'}"
+            for s, ok in results))
+    return acknowledged, bound
+
+
+def apply_for(game, tier=None):
+    """Write a game's rumble-to-trigger bind into **every** pad that takes one.
+
+    Tier 1 is the one route that scales for free. The bind is command 82 and
+    nothing else: a pad-side setting, driven by the pad's own rumble, with no
+    host process in the loop once it is written. So two pads in a local co-op
+    game both get adaptive triggers, and neither has to be chosen. Every other
+    route holds one pad -- a driver rewriting effects at 20 Hz, a relay
+    presenting one DualSense -- and acts on the primary one instead.
+
+    True when at least one pad acknowledged every side attempted for it. A
+    skipped side is not a failure, but a game with no configured sides did not
+    apply anything. A desk with two pads where one is asleep is the ordinary
+    case, not a failure, so a pad that is not there is simply not written to;
+    `registry.drivable_pads` only lists what answered.
+
+    One pad refusing does not stop the others: they are separate devices, and
+    the failure worth avoiding is the second pad going unbound because the
+    first one had gone to sleep between the enumeration and the write.
+    """
+    tier = tier or games.tier(game)
+    if tier != "vibration":
+        return False
+    # Named, not implied: this writes command 82, which binds the pad's own
+    # rumble to its force triggers. A pad without them acknowledges it and does
+    # nothing, so the filter is the only thing that would ever say so.
+    pads = registry.drivable_pads(capability="adaptive_triggers")
+    if not pads:
+        log("could not apply: no controller this project drives is attached")
+        return False
+    applied, _bound = _apply_bindings(game, pads)
+    return applied
+
+
+def refresh_bindings(game, bound, reassert=False):
+    """Reconcile acknowledged vibration binds with the attached pad set.
+
+    `bound` is mutated in place and contains shallow-probe MAC identities. A
+    pad that disappears is removed immediately. A present pad not in the set
+    is attempted on every call until all of its configured sides acknowledge.
+    `reassert` attempts every compatible attached pad, including bound ones.
+
+    Returns whether at least one attached pad is currently marked bound.
+    """
+    pads = registry.drivable_pads(capability="adaptive_triggers")
+    present = {_pad_identity(entry) for entry in pads}
+    present.discard(None)
+    bound.intersection_update(present)
+
+    if reassert:
+        targets = pads
+        # Reassertion is also a fresh observation: a pad that does not
+        # acknowledge now remains eligible for the next ordinary poll.
+        bound.difference_update(present)
+    else:
+        targets = [entry for entry in pads
+                   if _pad_identity(entry) not in bound]
+
+    if targets:
+        _acknowledged, newly_bound = _apply_bindings(game, targets)
+        bound.update(newly_bound)
+    return bool(bound)
+
+
+class Driver:
+    """The helper process running beside a game, if the route needs one.
+
+    The drivers hold the pad for the whole session -- the memory one rewrites
+    the trigger effects every 50ms -- so this is a lifetime to manage, not a
+    command to fire. Stopping is polite first: the drivers put the triggers
+    back on SIGINT, and killing outright would leave whatever was last written
+    on the pad.
+    """
+
+    def __init__(self):
+        self.proc = None
+        self.name = ""
+        self.started_at = 0.0
+        # How long the last driver to exit had been running. What separates a
+        # config that cannot work -- which fails in the same second every time
+        # -- from a session that was fine until something disturbed it.
+        self.last_run_seconds = 0.0
+
+    def start(self, game, argv):
+        self.stop()
+        self.name = game.get("enGameName") or "?"
+        try:
+            self.proc = subprocess.Popen(argv)
+        except OSError as exc:
+            log(f"{self.name}: could not start {os.path.basename(argv[1])}: {exc}")
+            self.proc = None
+            return False
+        self.started_at = time.monotonic()
+        log(f"{self.name}: started {os.path.basename(argv[1])} (pid {self.proc.pid})")
+        return True
+
+    def stop(self):
+        if self.proc is None:
+            return
+        if self.proc.poll() is None:
+            self.proc.send_signal(signal.SIGINT)
+            try:
+                self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                log(f"{self.name}: driver did not stop, killing it")
+                self.proc.kill()
+                self.proc.wait(timeout=5)
+            log(f"{self.name}: driver stopped")
+        self.proc = None
+
+    def died(self):
+        """True once, when the driver has exited on its own."""
+        if self.proc is not None and self.proc.poll() is not None:
+            code = self.proc.returncode
+            self.last_run_seconds = time.monotonic() - self.started_at
+            log(f"{self.name}: driver exited on its own (status {code}) "
+                f"after {self.last_run_seconds:.0f}s")
+            self.proc = None
+            return True
+        return False
+
+    @property
+    def running(self):
+        return self.proc is not None and self.proc.poll() is None
+
+
+def pad_present():
+    """Whether any pad is on the bus at all.
+
+    A sleeping Apex 5 leaves USB entirely, so this is also how "the pad went
+    to sleep mid-game" looks. Costs two small reads per hidraw node and opens
+    nothing. Reconnect binding uses `refresh_bindings`, which needs the stable
+    identity from each compatible pad's shallow registry probe instead.
+    """
+    # `find_nodes` is a generator: truth-testing it would be true even for an
+    # empty bus, which reads as "the pad is always here" and would have quietly
+    # disabled the whole reconnect path.
+    return next(iter(device.find_nodes(device.FAMILY_PAD)), None) is not None
+
+
+def clear_triggers():
+    """Put the triggers back, on every pad that was written to.
+
+    The counterpart of `apply_for` and it has to match it: a bind was written
+    to each attached pad, so clearing one would leave the others playing a
+    trigger effect for a game that has exited.
+    """
+    cleared = []
+    # Same filter as applying: clearing a trigger effect is only meaningful on
+    # a pad that has trigger effects to clear.
+    for entry in registry.drivable_pads(capability="adaptive_triggers"):
+        try:
+            with registry.open_device(entry["path"], registry.KIND_PAD) as ctrl:
+                effects.clear_all(ctrl)
+            cleared.append(f"{registry.label(entry)} ({entry['path']})")
+        except (DeviceNotFound, OSError) as exc:
+            log(f"reset skipped for {registry.label(entry)}: {exc}")
+    if cleared:
+        log("triggers reset on " + ", ".join(cleared))
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--interval", type=float, default=1.0)
+    ap.add_argument("--reassert", type=float, default=0.0,
+                    help="re-apply config every N seconds (counters Steam Input "
+                         "resetting controller state; 0 disables)")
+    registry.add_device_argument(
+        ap, help="the pad the single-pad routes drive, overriding the app's "
+                 "choice. The tier-1 vibration bind ignores this and goes to "
+                 "every pad that takes one")
+    args = ap.parse_args()
+
+    index = games.process_index()
+    log(f"watching for {len(index)} process names")
+
+    settings = prefs.Prefs()
+    settings_mtime = settings.mtime()
+
+    def primary():
+        """Which pad the single-pad routes drive, re-read as the file changes.
+
+        A function rather than a value because the app writes the choice into
+        the same file auto mode lives in, and that file is re-read below while
+        the daemon runs -- so switching pads in the picker moves the next
+        driver this starts, without a restart.
+        """
+        return args.device or settings.primary_pad()
+
+    scanner = Scanner(index)
+    driver = Driver()
+    active = None
+    last_assert = 0.0
+    bound_pads = set()
+    ignored = set()
+    unsupported = set()
+    waiting = set()
+    # key -> (restarts spent, the game) for drivers that exited on their own.
+    # The game is kept so the entry can be dropped once it stops running, which
+    # is what gives a relaunch a fresh budget instead of a verdict inherited
+    # from the last session.
+    deaths = {}
+
+    while True:
+        # The app edits this file while we run, so a toggle takes effect on the
+        # next poll rather than on the next login.
+        if settings.mtime() != settings_mtime:
+            settings = prefs.Prefs()
+            settings_mtime = settings.mtime()
+            ignored.clear()
+            unsupported.clear()
+            waiting.clear()
+            deaths.clear()
+            scanner.reset()
+            log("preferences reloaded")
+
+        scanner.refresh()
+
+        # A game that has stopped running gets its restart budget back. Without
+        # this a driver that spent the budget once would stay refused until the
+        # daemon or the preferences file was touched, across every later launch
+        # of that game.
+        for gone in [k for k, (_, g) in deaths.items() if not scanner.is_running(g)]:
+            del deaths[gone]
+
+        if active is not None and not scanner.is_running(active):
+            log(f"{active.get('enGameName')} exited")
+            driver.stop()
+            clear_triggers()
+            active = None
+            bound_pads.clear()
+
+        if active is None:
+            game, game_pid = scanner.candidate()
+            # Keyed by game rather than pid: the pid is now deliberately absent
+            # until the game itself is up, and a set holding None would silence
+            # the next game as well.
+            key = prefs.key(game) if game is not None else None
+            if game is None:
+                pass
+            elif not settings.auto(game):
+                # Logged once, or a declined title would say so every second
+                # for as long as it runs.
+                if key not in ignored:
+                    ignored.add(key)
+                    log(f"{game.get('enGameName')}: auto mode off, leaving it alone")
+            elif refused(deaths, key):
+                # Given up on above, and said so there. Silent here, or it
+                # would repeat that line every poll until the game exits.
+                pass
+            else:
+                route = settings.route(game)
+                argv = driver_argv(game, route, primary())
+                if route == "vibration":
+                    # Nothing to start by design: the pad drives itself once
+                    # the preset is written.
+                    bound_pads.clear()
+                    if refresh_bindings(game, bound_pads):
+                        active = game
+                        last_assert = time.time()
+                elif argv is not None:
+                    if route in NEEDS_GAME_PROCESS and game_pid is None:
+                        # Only the launcher chain is up so far. Starting the
+                        # driver now would have it fail to find the game and
+                        # exit, and an exited driver is not restarted.
+                        if key not in waiting:
+                            waiting.add(key)
+                            log(f"{game.get('enGameName')}: launching — waiting "
+                                f"for the game itself before starting the driver")
+                    elif driver.start(game, argv):
+                        active = game
+                        waiting.discard(key)
+                elif key not in unsupported:
+                    unsupported.add(key)
+                    # Says which part is missing. The drivers themselves are
+                    # written and validated; what a route without an argv
+                    # lacks is a way to start it *after* the game is up.
+                    log(f"{game.get('enGameName')}: nothing to start for the "
+                        f"'{route}' route — start it before the game "
+                        f"(see tools/flydigi-run)")
+        else:
+            route = settings.route(active)
+            if driver.died():
+                # The driver is gone but the game is not. Restart it, but not
+                # without end: a config whose offsets a game patch broke fails
+                # the same way every poll, and respawning it for the length of
+                # a session helps nobody. See DRIVER_RESTARTS.
+                # A driver that ran a while before stopping was working, and
+                # the commonest reason for that -- the pad sleeping mid-game --
+                # comes back on its own, so `spend_restart` forgives the count.
+                spent, again = spend_restart(
+                    deaths, prefs.key(active), active, driver.last_run_seconds)
+                name = active.get("enGameName")
+                if again:
+                    log(f"{name}: restarting its driver "
+                        f"({spent} of {DRIVER_RESTARTS})")
+                else:
+                    log(f"{name}: driver has died {spent} times without "
+                        f"settling — not starting it again this session. Run "
+                        f"it by hand to see why")
+                clear_triggers()
+                active = None
+            else:
+                # The vibration route leaves nothing running. A bind is live
+                # state -- command 82, not something the profile carries -- so
+                # each compatible pad is tracked independently and rebound
+                # after its own reconnect. The other routes have a driver
+                # holding one pad, which is a louder failure and its own
+                # problem.
+                if route == "vibration":
+                    reassert = bool(args.reassert and (
+                        time.time() - last_assert >= args.reassert))
+                    refresh_bindings(active, bound_pads, reassert=reassert)
+                    if reassert:
+                        last_assert = time.time()
+
+        time.sleep(args.interval)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        clear_triggers()

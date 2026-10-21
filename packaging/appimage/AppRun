@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+APPDIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+export APPDIR
+export APEXSENSE_BUNDLED=1
+export APEXSENSE_ENGINE="$APPDIR/usr/bin/ApexSenseBridge"
+export PYTHONHOME="$APPDIR/usr"
+export PYTHONPATH="$APPDIR/usr/lib/python3/dist-packages"
+export PYTHONNOUSERSITE=1
+export PYTHONDONTWRITEBYTECODE=1
+export LD_LIBRARY_PATH="$APPDIR/usr/lib"
+export QT_PLUGIN_PATH="$APPDIR/usr/plugins"
+export QT_QPA_PLATFORM_PLUGIN_PATH="$APPDIR/usr/plugins/platforms"
+export QML_IMPORT_PATH="$APPDIR/usr/qml"
+export QML2_IMPORT_PATH="$APPDIR/usr/qml"
+export QT_QUICK_CONTROLS_STYLE=Basic
+export QT_STYLE_OVERRIDE=Fusion
+export QT_QUICK_BACKEND="${QT_QUICK_BACKEND:-software}"
+export FONTCONFIG_PATH="$APPDIR/etc/fonts"
+export FONTCONFIG_FILE="$APPDIR/etc/fonts/fonts.conf"
+export XDG_DATA_DIRS="$APPDIR/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+unset QT_QPA_PLATFORMTHEME
+exec "$APPDIR/usr/bin/python3" "$APPDIR/usr/share/ApexSense/gui/main.py" "$@"

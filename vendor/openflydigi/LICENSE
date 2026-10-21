@@ -1,0 +1,32 @@
+This repository is not under a single license. Every file declares its own with
+an SPDX header, following the REUSE specification (https://reuse.software/);
+full texts are in LICENSES/.
+
+    flydigi/, tools/, tests/          MIT
+      except the Qt-dependent files: tools/generate-qmltypes, tests/test_models.py,
+      tests/test_qml.py, tests/test_shell.py, tests/qml_harness.py, tests/qml/
+                                      GPL-3.0-or-later
+    README.md, PROGRESS.md, docs/     MIT
+    PROTOCOL.md                       CC0-1.0
+    udev/, pipewire/, .gitignore      CC0-1.0
+    gui/                              GPL-3.0-or-later
+
+The split is deliberate. The protocol implementation is MIT because I have no
+objection to anyone reusing it, in any project, under any license. PROTOCOL.md
+and the system configuration files are public domain because protocol facts and
+copy-pasteable config should carry no attribution burden at all.
+
+Copyleft is confined to what links Qt: gui/, and the Qt-dependent files under
+tools/ and tests/ listed above. Nobody needs to embed those, so GPL costs
+nothing there.
+
+MIT is one-way compatible with GPL: the GUI importing flydigi/ does not make
+flydigi/ GPL, and those files remain independently reusable.
+
+A binary release that bundles the GUI is conveyed as a whole under GPL-3.0
+terms. That is expected -- see README.md, "Building a release".
+
+flydigi/ps5_data.py is generated from inputtino and is additionally copyright
+Games on Whales under the MIT License; see NOTICE.
+
+Run `reuse lint` to verify any of this.

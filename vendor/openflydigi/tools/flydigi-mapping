@@ -1,0 +1,532 @@
+#!/usr/bin/env python3
+
+# SPDX-FileCopyrightText: 2026 Mikalai Kaliaha
+#
+# SPDX-License-Identifier: MIT
+
+"""Read and edit the button-remapping profiles stored in the pad.
+
+    tools/flydigi-mapping list
+    tools/flydigi-mapping show 0
+    tools/flydigi-mapping set 0 m1 a --save
+    tools/flydigi-mapping clear 0 m1 --save
+    tools/flydigi-mapping rename 3 "Racing" --save
+    tools/flydigi-mapping apply 1
+    tools/flydigi-mapping backup 0 profile0.bin
+    tools/flydigi-mapping restore 0 profile0.bin --save
+    tools/flydigi-mapping macros 0
+    tools/flydigi-mapping macro-record 0 m1 --seconds 8 --save
+    tools/flydigi-mapping macro-set 0 m2 press:a wait:80 release:a --save
+    tools/flydigi-mapping macro-clear 0 m1 --save
+    tools/flydigi-mapping gyro 0 right --key m1 --sensitivity 60 --save
+
+Edits land in the pad's working memory immediately; --save commits them to
+flash so they survive a power cycle. Always back up before writing -- these
+profiles are the only copy, and Space Station is not available to rebuild them.
+"""
+import argparse
+import sys
+
+sys.path.insert(0, __file__.rsplit("/", 2)[0])
+
+from flydigi import (device, effects, identity, macros as macro_recorder,
+                     mapping, registry)
+
+MACRO_TYPES = {"once": mapping.MACRO_ONCE,
+               "held": mapping.MACRO_WHILE_HELD,
+               "toggle": mapping.MACRO_TOGGLE}
+
+# Short names for MOTION_TARGETS, whose own are two words. Mouse is absent
+# because the pad cannot do it -- see mapping.MOTION_TARGETS.
+GYRO_TARGETS = {"off": mapping.MOTION_OFF,
+                "left": mapping.MOTION_LEFT_STICK,
+                "right": mapping.MOTION_RIGHT_STICK}
+
+
+def open_pad(selector=None):
+    """Open the pad, having first checked it is the pad this tool writes to.
+
+    One command-1 exchange. Without it the tool would happily stream an 840-byte
+    Apex 5 profile into a Vader 4 Pro: `find_device` matches the vendor id and
+    the vendor report descriptor, and every Flydigi pad has the same pair.
+
+    The guard refuses; `--device` chooses. With two pads attached, a bare run
+    still takes whichever node sorts first -- so the guard is what stops a
+    profile landing in the wrong pad, and the selector is what puts it in the
+    right one.
+    """
+    try:
+        ctrl = registry.open_pad(selector)
+    except device.DeviceNotFound as exc:
+        sys.exit(f"error: {exc}")
+    try:
+        found = identity.require(ctrl)
+    except identity.WrongDevice as exc:
+        ctrl.close()
+        sys.exit(f"error: {exc}")
+    # Kept rather than discarded: which buttons the pad has decides what
+    # "remapped" can even mean, and this read is the only thing that knows.
+    ctrl.device_code = found["code"]
+    return ctrl
+
+
+def read(ctrl, cfg_id):
+    try:
+        config = mapping.read_config(ctrl, cfg_id)
+    except mapping.ProtocolError as exc:
+        sys.exit(f"error: {exc}")
+    # A profile read pages that slot in and audibly re-seats the trigger
+    # motors, but does not start the effects stored in the blob.  Leaving a
+    # `show`, `backup` or `macros` command here therefore changed the running
+    # controller: the read could return Lock while the physical trigger had
+    # already gone loose.  The desktop worker and `apply_profile` both replay
+    # the stored effects after the same read; CLI inspection must do so too.
+    effects.engage_stored(ctrl, config, getattr(ctrl, "device_code", None))
+    return config
+
+
+def describe(config, code=None):
+    remapped = config.remapped(mapping.keys_for(code))
+    if not remapped:
+        return "default"
+    parts = []
+    for key, (target, mode, frequency) in sorted(remapped.items()):
+        label = f"{key}->{target}"
+        if frequency:
+            label += f" turbo/{frequency}"
+            label += "(hold)" if mode == mapping.TURBO_WHILE_HELD else "(toggle)"
+        parts.append(label)
+    return ", ".join(parts)
+
+
+def describe_motion(config):
+    """The gyro mapping as one line."""
+    motion = config.motion()
+    target = mapping.MOTION_TARGETS.get(motion["target"], motion["target"])
+    if motion["target"] == mapping.MOTION_OFF:
+        return "off"
+    keys = [str(key) for key in motion["keys"] if key is not None]
+    enable = mapping.MOTION_ENABLE_TYPES.get(motion["enable_type"],
+                                             motion["enable_type"])
+    return (f"{target}, {enable} {' or '.join(keys) or 'nothing'}, "
+            f"sensitivity {motion['sensitivity']}, "
+            f"dead-zone offset {motion['dead_zone']}")
+
+
+def parse_steps(tokens):
+    """`press:a wait:80 release:a` into macro steps.
+
+    `wait` is the pause before whatever comes next, which is how the blob
+    stores it -- each step carries the gap in front of it, not behind.
+    """
+    steps, pending = [], 0
+    for token in tokens:
+        verb, _, argument = token.partition(":")
+        if verb == "wait":
+            try:
+                pending += int(argument)
+            except ValueError:
+                sys.exit(f"error: {token!r} needs a number of milliseconds")
+        elif verb in ("press", "release"):
+            if not argument:
+                sys.exit(f"error: {token!r} needs a key")
+            steps.append({
+                "delay": pending,
+                "key": argument,
+                "event": mapping.MACRO_PRESS if verb == "press"
+                         else mapping.MACRO_RELEASE,
+            })
+            pending = 0
+        else:
+            sys.exit(f"error: {token!r} is not press:<key>, release:<key> "
+                     "or wait:<ms>")
+    if not steps:
+        sys.exit("error: a macro needs at least one step")
+    return steps
+
+
+def show_macros(config):
+    stored = config.macros()
+    if not stored:
+        print("no macros in this profile")
+        return
+    for macro in stored:
+        kind = mapping.MACRO_TYPES.get(macro["type"], macro["type"])
+        interval = ("unset" if macro["interval"] is None
+                    else f"{macro['interval']} ms")
+        print(f"{macro['key']}: {kind}, repeat interval {interval}, "
+              f"{len(macro['steps'])} step(s), "
+              f"{macro_recorder.total_ms(macro['steps'])} ms")
+        for line in macro_recorder.describe(macro["steps"]):
+            print(f"    {line}")
+
+
+def commit(ctrl, cfg_id, new, old, save):
+    sent = mapping.write_config(ctrl, cfg_id, new, old=old)
+    print(f"wrote {sent} packet(s) to profile {cfg_id}")
+    # A changed macro is stored but not played until the profile is paged in
+    # again -- verified on hardware. Only then, since applying makes the pad
+    # re-seat its trigger motors.
+    if sent and new.macro_page != old.macro_page:
+        mapping.apply_config(ctrl, cfg_id)
+        print("re-applied the profile so the pad plays the new macro")
+    if save:
+        # A *fresh* tag, not the config's own. Command 166 writes whatever it
+        # is given into the slot's version tag, and `read_status` reports that
+        # tag as how anything knows whether a cached copy is still current --
+        # so saving with 0 answers "has this changed?" with a lie, and saving
+        # with the previous value answers it with a different one. Measured:
+        # renaming a slot and re-committing its old tag left every other
+        # application showing the name it had cached.
+        version = mapping.next_data_version(new.data_version)
+        if mapping.save_config(ctrl, version):
+            new.data_version = version
+            print(f"saved to flash (slot tag now {version})")
+        else:
+            print("warning: no reply to save -- change may be lost on power cycle")
+    else:
+        print("not saved -- pass --save to keep it across a power cycle")
+    # Storing a trigger effect does not start it. Space Station replays the
+    # stored block as a live command 81 per side after every applied-config
+    # read; without that the triggers stay loose whatever the profile says.
+    code = getattr(ctrl, "device_code", None)
+    if not identity.can(code, "adaptive_triggers"):
+        # Not silence: the profile still carries a stored effect, and saying
+        # nothing here would look like the replay had happened.
+        print("no force triggers on this model, so nothing was engaged -- the "
+              "stored effect is in the profile and this pad cannot play it")
+    else:
+        engaged = ", ".join(
+            name for name, ok in effects.engage_stored(ctrl, new, code) if ok)
+        print(f"engaged the stored trigger effect on: {engaged or 'neither trigger'}")
+
+
+def apply_profile(ctrl, cfg_id):
+    """Switch profiles and replay stored effects when the hardware has them."""
+    if not mapping.apply_config(ctrl, cfg_id):
+        print("no reply -- the pad may be asleep")
+        return False
+    print("switched")
+
+    code = getattr(ctrl, "device_code", None)
+    if not identity.can(code, "adaptive_triggers"):
+        print("no force triggers on this model; skipped stored effect engagement")
+        return True
+
+    # Switching to a profile is not enough to start the trigger effects it
+    # stores -- they need a live command 81 each. Reading the slot back is
+    # what supplies the bytes to build those from; it is already the active
+    # one, so the read costs a round trip and switches nothing.
+    engaged = ", ".join(
+        name for name, ok
+        in effects.engage_stored(ctrl, mapping.read_config(ctrl, cfg_id), code)
+        if ok)
+    print(f"engaged the stored trigger effect on: {engaged or 'neither trigger'}")
+    return True
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument("--profiles", type=int, default=4,
+                        help="how many profile slots to scan (default 4)")
+    registry.add_device_argument(parser)
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    sub.add_parser("list", help="show every profile")
+    p = sub.add_parser("show", help="show one profile in full")
+    p.add_argument("cfg", type=int)
+
+    p = sub.add_parser("set", help="remap a button")
+    p.add_argument("cfg", type=int)
+    p.add_argument("key", help=f"one of: {', '.join(mapping.APEX5_KEYS)}")
+    p.add_argument("target", help="key to send instead")
+    p.add_argument("--turbo", type=int, default=0,
+                   help="turbo frequency; 0 disables")
+    p.add_argument("--turbo-toggle", action="store_true",
+                   help="turbo toggles rather than repeating while held")
+    p.add_argument("--save", action="store_true")
+
+    p = sub.add_parser("clear", help="restore a button to its default")
+    p.add_argument("cfg", type=int)
+    p.add_argument("key")
+    p.add_argument("--save", action="store_true")
+
+    p = sub.add_parser("reset", help="restore one profile to factory")
+    p.add_argument("cfg", type=int)
+    p.add_argument("--yes", action="store_true",
+                   help="do not ask; the slot is overwritten in flash")
+
+    p = sub.add_parser("reset-all",
+                       help="restore EVERY profile to factory (command 175)")
+    p.add_argument("--yes", action="store_true",
+                   help="do not ask; all four slots are overwritten in flash")
+
+    p = sub.add_parser("to-switch",
+                       help="copy a profile into the matching Switch slot")
+    p.add_argument("cfg", type=int)
+
+    p = sub.add_parser("rename", help="rename a profile")
+    p.add_argument("cfg", type=int)
+    p.add_argument("title")
+    p.add_argument("--save", action="store_true")
+
+    p = sub.add_parser("apply", help="switch the pad to a profile")
+    p.add_argument("cfg", type=int)
+
+    p = sub.add_parser("backup", help="dump a profile to a file")
+    p.add_argument("cfg", type=int)
+    p.add_argument("path")
+
+    p = sub.add_parser("restore", help="write a dumped profile back")
+    p.add_argument("cfg", type=int)
+    p.add_argument("path")
+    p.add_argument("--save", action="store_true")
+
+    p = sub.add_parser("macros", help="show a profile's macros")
+    p.add_argument("cfg", type=int)
+
+    p = sub.add_parser("macro-record",
+                       help="record a macro off the pad and bind it to a key")
+    p.add_argument("cfg", type=int)
+    p.add_argument("key", help="the key that will run it, e.g. m1")
+    p.add_argument("--seconds", type=float, default=10.0,
+                   help="how long to record for (default 10)")
+    p.add_argument("--type", choices=sorted(MACRO_TYPES), default="once",
+                   help="once per press, while held, or toggle (default once)")
+    p.add_argument("--interval", type=int,
+                   help="milliseconds between repeats, for held and toggle")
+    p.add_argument("--save", action="store_true")
+
+    p = sub.add_parser("macro-set", help="bind a macro written out by hand")
+    p.add_argument("cfg", type=int)
+    p.add_argument("key")
+    p.add_argument("steps", nargs="+",
+                   help="press:<key>, release:<key> or wait:<ms>")
+    p.add_argument("--type", choices=sorted(MACRO_TYPES), default="once")
+    p.add_argument("--interval", type=int)
+    p.add_argument("--save", action="store_true")
+
+    p = sub.add_parser("macro-clear", help="drop the macro on a key")
+    p.add_argument("cfg", type=int)
+    p.add_argument("key")
+    p.add_argument("--save", action="store_true")
+
+    p = sub.add_parser("gyro", help="map the gyro onto a stick")
+    p.add_argument("cfg", type=int)
+    p.add_argument("target", choices=sorted(GYRO_TARGETS),
+                   help="which stick the gyro drives, or off")
+    p.add_argument("--key", help="the button that turns the gyro on")
+    p.add_argument("--key2", help="a second button that also turns it on")
+    p.add_argument("--enable", choices=("click", "hold"),
+                   help="the key toggles the gyro, or holds it on")
+    p.add_argument("--sensitivity", type=int,
+                   help=f"0..{mapping.MOTION_SENSITIVITY_MAX}")
+    p.add_argument("--dead-zone", type=int,
+                   help=f"0..{mapping.MOTION_DEAD_ZONE_MAX}, an offset that "
+                        "cancels a game's own dead zone rather than adding one")
+    p.add_argument("--save", action="store_true")
+
+    args = parser.parse_args()
+    ctrl = open_pad(args.device)
+
+    if args.cmd == "list":
+        for cfg_id in range(args.profiles):
+            try:
+                config = mapping.read_config(ctrl, cfg_id)
+            except mapping.ProtocolError as exc:
+                print(f"{cfg_id}: unreadable ({exc})")
+                continue
+            print(f"{cfg_id}: {config.title!r:20} "
+                  f"{describe(config, ctrl.device_code)}")
+        return
+
+    if args.cmd == "apply":
+        apply_profile(ctrl, args.cfg)
+        return
+
+    if args.cmd == "reset":
+        # One slot, by writing the factory profile into it -- the firmware's own
+        # reset has no per-slot form (see reset-all). Asked about anyway: it is a
+        # flash write with no undo, and the casualty nobody predicts is the name,
+        # which lives in the blob and comes back as the factory one.
+        if not args.yes:
+            print(f"Profile {args.cfg} goes back to factory: every mapping, the "
+                  f"sticks, the triggers, the macros -- and its name.")
+            print("Lighting is left alone: it is not in the profile, and the "
+                  "factory lighting differs between editions of one pad.")
+            if input("Type yes to continue: ").strip().lower() != "yes":
+                print("nothing sent")
+                return
+        try:
+            restored, saved = mapping.reset_config(ctrl, args.cfg)
+        except identity.WrongDevice as exc:
+            sys.exit(f"error: {exc}")
+        print(f"profile {args.cfg} restored to {restored.title!r}"
+              + ("" if saved else " -- but the save was not acknowledged, so it "
+                                 "will not survive a power cycle"))
+        return
+
+    if args.cmd == "reset-all":
+        # Command 175, which ignores the slot it is given. Measured: named the
+        # four slots and sent it with cfgId 2, and all four came back factory.
+        if not args.yes:
+            print("EVERY profile goes back to factory -- all four, whatever "
+                  "you name. Their names go too, back to the Chinese ones the "
+                  "pad shipped with. This cannot be undone.")
+            if input("Type yes to continue: ").strip().lower() != "yes":
+                print("nothing sent")
+                return
+        if mapping.reset_all_configs(ctrl):
+            print("every profile restored to factory")
+        else:
+            print("no reply -- the pad may be asleep")
+        return
+
+    if args.cmd == "to-switch":
+        target = mapping.switch_cfg_id(args.cfg)
+        # Reading is what makes this profile the running one, which 171 needs:
+        # the command names the destination and copies whatever is live.
+        config = read(ctrl, args.cfg)
+        stripped = config.normalise_for_switch()
+        for note in stripped:
+            print(f"dropped for the Switch: {note}")
+        if stripped:
+            # The normalised copy has to actually be running before it can be
+            # committed, so it goes back to the source slot first -- to working
+            # memory only, exactly as Space Station does it. No 166 here, so
+            # the source profile's saved copy is untouched.
+            sent = mapping.write_config(ctrl, args.cfg, config, old=None)
+            print(f"wrote {sent} packet(s) back to profile {args.cfg} "
+                  f"(working memory only, not saved)")
+        version = mapping.next_data_version(config.data_version)
+        if mapping.save_switch_config(ctrl, target, version):
+            print(f"profile {args.cfg} copied into Switch slot {target} "
+                  f"(tag {version})")
+        else:
+            print("no reply -- the pad may be asleep")
+        return
+
+    config = read(ctrl, args.cfg)
+
+    if args.cmd == "show":
+        version = f"{config.proto_version >> 8}.{config.proto_version & 0xF}"
+        print(f"profile {args.cfg}: {config.title!r}")
+        print(f"  protocol v{version}, {len(config.blob)} bytes, "
+              f"data version {config.data_version}")
+        for key in mapping.APEX5_KEYS:
+            target, mode, frequency = config.mapping(key)
+            note = "" if target == key and not frequency else "   <-- remapped"
+            turbo = f" turbo {frequency}" if frequency else ""
+            print(f"  {key:<7} -> {target}{turbo}{note}")
+        print(f"  gyro    -> {describe_motion(config)}")
+        if config.macros():
+            print()
+            show_macros(config)
+        return
+
+    if args.cmd == "macros":
+        show_macros(config)
+        return
+
+    if args.cmd == "backup":
+        with open(args.path, "wb") as fh:
+            fh.write(bytes(config.blob))
+        print(f"wrote {len(config.blob)} bytes to {args.path}")
+        return
+
+    new = config.copy()
+    if args.cmd == "set":
+        if args.key not in mapping.KEY_IDS:
+            sys.exit(f"error: unknown key {args.key!r}")
+        if args.target not in mapping.KEY_IDS:
+            sys.exit(f"error: unknown target {args.target!r}")
+        mode = mapping.TURBO_TOGGLE if args.turbo_toggle else mapping.TURBO_WHILE_HELD
+        new.set_mapping(args.key, args.target, mode, args.turbo)
+    elif args.cmd == "clear":
+        new.set_mapping(args.key, None)
+    elif args.cmd == "rename":
+        new.title = args.title
+    elif args.cmd in ("macro-record", "macro-set"):
+        if args.key not in mapping.KEY_IDS:
+            sys.exit(f"error: unknown key {args.key!r}")
+        if args.cmd == "macro-set":
+            steps = parse_steps(args.steps)
+        else:
+            if config.mapping(args.key)[0] == "macro":
+                print(f"note: {args.key} already runs a macro, so pressing it "
+                      "now plays that one rather than recording it")
+            print(f"Recording for {args.seconds:g} s — play the sequence on "
+                  "the pad now. Anything still held is released at the end.")
+            try:
+                steps = macro_recorder.record(args.seconds)
+            except OSError as exc:
+                sys.exit(f"error: {exc}")
+            if not steps:
+                sys.exit("error: nothing was recorded. If another program has "
+                         "taken the pad over, the evdev node stops reporting — "
+                         "turn third-party control off and try again.")
+            print(f"{len(steps)} step(s), "
+                  f"{macro_recorder.total_ms(steps)} ms:")
+            for line in macro_recorder.describe(steps):
+                print(f"    {line}")
+        try:
+            new.set_macro(args.key, steps, MACRO_TYPES[args.type], args.interval)
+        except (ValueError, mapping.ProtocolError) as exc:
+            sys.exit(f"error: {exc}")
+    elif args.cmd == "macro-clear":
+        if args.key not in mapping.KEY_IDS:
+            sys.exit(f"error: unknown key {args.key!r}")
+        if config.macro(args.key) is None:
+            sys.exit(f"error: {args.key} has no macro on it")
+        new.clear_macro(args.key)
+    elif args.cmd == "gyro":
+        target = GYRO_TARGETS[args.target]
+        for name in (args.key, args.key2):
+            if name is not None and name not in mapping.KEY_IDS:
+                sys.exit(f"error: unknown key {name!r}")
+        keys = None
+        if target != mapping.MOTION_OFF:
+            # Not optional, and not a default we could pick: the factory blob
+            # holds Lt and D-pad Up in the two enable-key bytes, so turning the
+            # gyro on without saying which button does it hands the mapping to
+            # whichever of those the firmware reads.
+            if args.key is None:
+                sys.exit("error: --key says which button turns the gyro on. "
+                         "There is no always-on setting, and the bytes already "
+                         "in the profile are the factory's, not a choice.")
+            keys = (args.key, args.key2)
+        elif args.key is not None or args.key2 is not None:
+            keys = (args.key, args.key2)
+        try:
+            new.set_motion(target=target, enable_type=args.enable, keys=keys,
+                           sensitivity=args.sensitivity,
+                           dead_zone=args.dead_zone)
+        except ValueError as exc:
+            sys.exit(f"error: {exc}")
+        print(f"gyro: {describe_motion(new)}")
+        landed = new.motion()
+        if args.key2 is not None and landed["keys"][1] != args.key2:
+            # Flydigi's format only carries a change to byte 7 under Hold, and
+            # this mirrors it -- so say so rather than let --key2 look applied.
+            print("note: --key2 was not written. The profile's enable type is "
+                  "toggle, and the blob only carries a change to the second "
+                  "key while it is hold -- pass --enable hold to set it.")
+        if target != mapping.MOTION_OFF and landed["keys"][1] is not None:
+            print(f"note: {landed['keys'][1]} also switches the gyro on. The "
+                  "pad ships with one set in that byte and honours it, so it "
+                  "is a real binding whether or not you chose it.")
+        if target != mapping.MOTION_OFF:
+            print("note: the pad lowers its polling rate while this is on")
+    elif args.cmd == "restore":
+        with open(args.path, "rb") as fh:
+            blob = fh.read()
+        if len(blob) != len(config.blob):
+            sys.exit(f"error: {args.path} is {len(blob)} bytes, "
+                     f"pad expects {len(config.blob)}")
+        new = mapping.MappingConfig(blob, args.cfg)
+
+    commit(ctrl, args.cfg, new, config, getattr(args, "save", False))
+
+
+if __name__ == "__main__":
+    main()

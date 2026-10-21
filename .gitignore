@@ -178,3 +178,11 @@ ISSUE_TRIAGE_*.md
 *GYRO_CAPTURE*
 *GYRO_VALIDATION*
 *TRIAGE*
+
+# Unified GUI / AppImage
+build/
+build-appimage/
+dist/
+__pycache__/
+*.pyc
+*.AppImage

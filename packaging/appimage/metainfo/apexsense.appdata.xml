@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.Qazerh.ApexSenseBridgeLinux</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>ApexSenseBridge Linux</name>
+  <summary>Configure Flydigi controllers and bridge native DualSense effects</summary>
+  <description><p>A unified Linux interface for Flydigi controller profiles, remapping, macros, sticks, lighting and display settings, combined with the ApexSenseBridge virtual DualSense engine.</p></description>
+  <launchable type="desktop-id">apexsense.desktop</launchable>
+  <url type="homepage">https://github.com/Qazerh/ApexSenseBridge-Linux</url>
+  <url type="bugtracker">https://github.com/Qazerh/ApexSenseBridge-Linux/issues</url>
+  <provides><binary>apexsense</binary></provides>
+  <content_rating type="oars-1.1"/>
+  <releases><release version="0.1.0" date="2026-10-21"/></releases>
+</component>

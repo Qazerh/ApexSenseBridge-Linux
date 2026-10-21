@@ -1,0 +1,4 @@
+# OpenFlydigi configuration pages embedded in ApexSenseBridge.
+# CD2 dock and Apex 5 screen bootloader; controller access is in 70-apexsensebridge.rules.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="37d7", ATTRS{idProduct}=="6001", TAG+="uaccess"
+SUBSYSTEM=="tty", KERNEL=="ttyACM*", ATTRS{idVendor}=="ffaa", ATTRS{idProduct}=="5555", TAG+="uaccess"

@@ -1,5 +1,56 @@
 # ApexSenseBridge for Linux
 
+## Unified Linux GUI and AppImage (this fork)
+
+This fork adds one desktop application combining the ApexSenseBridge Linux engine
+with OpenFlydigi configuration models and pages. It preserves the upstream CLI,
+protocol implementation and Git history.
+
+- One window and sidebar for the bridge, profiles, remapping, macros, sticks,
+  gyro, triggers, rumble, lighting, screen, dock, catalogue and diagnostics.
+- Shared console-style theme; device settings and the game bridge coordinate
+  exclusive access. Draft profile edits survive navigation and bridge sessions.
+- Self-contained **x86_64 AppImage** bundles Python, Qt 6, Kirigami and the engine.
+  Built against Debian 13: **glibc 2.41 or newer** is required. Older distributions
+  are not currently supported by this AppImage.
+
+### Build the AppImage
+
+Docker is the only host build dependency:
+
+```sh
+./packaging/appimage/build.sh
+```
+
+The build compiles and tests the engine, tests the unified UI using a simulated
+controller, checks all QML pages from the packaged runtime and produces
+`dist/ApexSenseBridge-Linux-x86_64.AppImage` plus `dist/SHA256SUMS`.
+The GitHub Actions **Unified GUI AppImage** workflow does the same. Tags matching
+`v*` publish the AppImage as a GitHub Release.
+
+### Run
+
+```sh
+chmod +x ApexSenseBridge-Linux-x86_64.AppImage
+./ApexSenseBridge-Linux-x86_64.AppImage
+```
+
+For first-time device permissions (administrator authentication is required):
+
+```sh
+./ApexSenseBridge-Linux-x86_64.AppImage --install-device-rules
+```
+
+Reconnect the controller/receiver afterwards. Systems without FUSE can use
+`--appimage-extract-and-run`. No OpenFlydigi daemon is installed.
+
+For a source install with distribution Python/PySide6/Kirigami, run
+`python3 install.py`. See [AppImage packaging notes](packaging/appimage/README.md)
+and [source provenance](SOURCE-REVISIONS.txt). Original project documentation follows.
+
+---
+
+
 [![Linux build](https://github.com/RafaelDiasCampos/ApexSenseBridge-Linux/actions/workflows/linux.yml/badge.svg)](https://github.com/RafaelDiasCampos/ApexSenseBridge-Linux/actions/workflows/linux.yml)
 
 A foreground Linux bridge that makes a Flydigi Apex controller appear as a USB

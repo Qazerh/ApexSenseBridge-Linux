@@ -1,0 +1,12 @@
+Linux bridge
+https://github.com/RafaelDiasCampos/ApexSenseBridge-Linux.git
+05e3c279091aef44d7655f18fff61195ad7eee20
+
+OpenFlydigi
+https://github.com/mkaliaha/openflydigi.git
+11653507bbe4dc77f3c479c2a7aaebf25bbda995
+
+Windows artwork/catalogue/theme
+https://github.com/ReynArts/ApexSenseBridge.git
+87dd495723a5f0be3c777d7a01dfccc4f2b0ce72
+

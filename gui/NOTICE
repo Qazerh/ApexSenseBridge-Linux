@@ -1,0 +1,10 @@
+Linux Qt interface inspired by ReynArts/ApexSenseBridge Windows Tray UI.
+Original controller artwork, logo and game catalogue: ReynArts/ApexSenseBridge.
+https://github.com/ReynArts/ApexSenseBridge
+Upstream revision:
+87dd495723a5f0be3c777d7a01dfccc4f2b0ce72
+
+Integrated OpenFlydigi models and themed configuration pages: Copyright 2026 Mikalai Kaliaha.
+https://github.com/mkaliaha/openflydigi
+Backend MIT; GUI GPL-3.0-or-later. Original notices and LICENSES retained in ../vendor/openflydigi.
+Local integration shell: ../vendor/openflydigi/gui/qml/UnifiedDevicePage.qml.
