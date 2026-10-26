@@ -79,13 +79,13 @@ Kirigami.ScrollablePage {
             explanation: App.dock.error !== "" ? App.dock.error : ""
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             Layout.fillWidth: true
             visible: App.dock.present
             title: "Устройство"
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             Layout.fillWidth: true
             visible: App.dock.present
 
@@ -114,10 +114,10 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             Layout.fillWidth: true
             visible: App.dock.present
-            title: "Switches"
+            title: "Поведение док-станции"
         }
 
         // Said rather than left to be inferred. These four take effect as they
@@ -129,43 +129,42 @@ Kirigami.ScrollablePage {
         Controls.Label {
             objectName: "dockSwitchNote"
             Layout.fillWidth: true
-            Layout.leftMargin: Kirigami.Units.largeSpacing
-            Layout.rightMargin: Kirigami.Units.largeSpacing
+            Layout.maximumWidth: Math.max(0, Math.min(880, parent.width - 32))
+            Layout.alignment: Qt.AlignHCenter
+            Layout.leftMargin: 0
+            Layout.rightMargin: 0
             visible: App.dock.present
             wrapMode: Text.WordWrap
             font: Kirigami.Theme.smallFont
             color: Kirigami.Theme.disabledTextColor
-            text: "These take effect as you move them, and what each one shows "
-                + "is what the dock reported afterwards — not what was asked for."
+            text: "Изменения применяются сразу. Переключатели показывают подтверждённое состояние док-станции."
         }
 
         // Not a rule this enforces -- both switches are set as asked, because a
         // page that silently turned one off would be lying about the device's
         // state. What it does is say which one wins, at the moment the two are
         // on together, rather than leaving a switch that visibly does nothing.
-        Kirigami.InlineMessage {
+        Controls.Pane {
             objectName: "dockSleepConflict"
             Layout.fillWidth: true
-            Layout.leftMargin: Kirigami.Units.largeSpacing
-            Layout.rightMargin: Kirigami.Units.largeSpacing
+            Layout.maximumWidth: Math.max(0, Math.min(880, parent.width - 32))
+            Layout.alignment: Qt.AlignHCenter
+            padding: 14
             visible: App.dock.present && App.dock.sleepWhenCharging
                      && (App.dock.ledSync || App.dock.showAnimationWhenCharging)
-            type: Kirigami.MessageType.Information
-            text: {
-                const shadowed = [];
-                if (App.dock.ledSync)
-                    shadowed.push("Lighting sync");
-                if (App.dock.showAnimationWhenCharging)
-                    shadowed.push("Power display");
-                return "“Sleep while docked” wins over "
-                     + shadowed.join(" and ")
-                     + " for as long as a pad is in the dock, since both "
-                     + "devices' lighting is off then. Space Station forces "
-                     + "these apart in its own window for the same reason.";
+            background: Rectangle {
+                radius: 8
+                color: "#142C50"
+                border.color: "#2E4F82"
+            }
+            contentItem: Controls.Label {
+                color: "#C3D5F4"
+                wrapMode: Text.Wrap
+                text: "При выключенной подсветке во время зарядки синхронизация и анимация зарядки не видны. Отключите этот режим, чтобы использовать их."
             }
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             Layout.fillWidth: true
             visible: App.dock.present
 
@@ -174,9 +173,8 @@ Kirigami.ScrollablePage {
                 // Named for what it does. Flydigi's own label is "Intelligent
                 // start", which says nothing about taking two devices' lighting
                 // down -- and that is the whole of what you notice.
-                text: "Sleep while docked"
-                description: "Both the pad and the dock go dark while a pad "
-                           + "sits in it. Flydigi call this “Intelligent start”."
+                text: "Выключать подсветку при зарядке"
+                description: "Когда контроллер установлен на док-станцию, подсветка обоих устройств гаснет."
                 value: App.dock.sleepWhenCharging
                 onMoved: (wanted) => App.dock.sleepWhenCharging = wanted
             }
@@ -185,10 +183,8 @@ Kirigami.ScrollablePage {
 
             ModelSwitch {
                 objectName: "dockLedSync"
-                text: "Lighting sync"
-                description: "keep the dock's lighting in step with the pad's — "
-                           + "the two arrange it between themselves, with nothing "
-                           + "host-side in the loop"
+                text: "Синхронизировать подсветку"
+                description: "Док-станция повторяет подсветку контроллера. Синхронизация работает без запущенного приложения."
                 value: App.dock.ledSync
                 onMoved: (wanted) => App.dock.ledSync = wanted
             }
@@ -197,8 +193,8 @@ Kirigami.ScrollablePage {
 
             ModelSwitch {
                 objectName: "dockCloseWithSystem"
-                text: "Close when shut down"
-                description: "go dark when the host powers off"
+                text: "Выключать вместе с компьютером"
+                description: "Гасить подсветку после выключения компьютера."
                 value: App.dock.closeWithSystem
                 onMoved: (wanted) => App.dock.closeWithSystem = wanted
             }
@@ -207,22 +203,22 @@ Kirigami.ScrollablePage {
 
             ModelSwitch {
                 objectName: "dockPowerDisplay"
-                text: "Power display"
+                text: "Показывать зарядку"
                 // Space Station forces this and Intelligent start apart in its
                 // own UI. Nothing in the firmware does, so nothing here does.
-                description: "play the charge animation while a pad is docked"
+                description: "Воспроизводить анимацию зарядки, пока контроллер находится на док-станции."
                 value: App.dock.showAnimationWhenCharging
                 onMoved: (wanted) => App.dock.showAnimationWhenCharging = wanted
             }
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             Layout.fillWidth: true
             visible: App.dock.present
             title: "Подсветка"
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             Layout.fillWidth: true
             visible: App.dock.present
 
@@ -317,7 +313,7 @@ Kirigami.ScrollablePage {
                         Layout.minimumWidth: Kirigami.Units.gridUnit * 7
                     }
 
-                    Controls.Slider {
+                    ConsoleSlider {
                         objectName: "dockBrightness"
                         Layout.fillWidth: true
                         from: 1
@@ -355,7 +351,7 @@ Kirigami.ScrollablePage {
                         Layout.minimumWidth: Kirigami.Units.gridUnit * 7
                     }
 
-                    Controls.Slider {
+                    ConsoleSlider {
                         objectName: "dockInterval"
                         Layout.fillWidth: true
                         from: App.dock.periodMin
@@ -412,13 +408,13 @@ Kirigami.ScrollablePage {
         // produces is the frames that card's Apply button sends, and a separate
         // page with its own Apply would have two buttons writing one config.
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             Layout.fillWidth: true
             visible: App.dock.present && App.dock.isPicture
             title: "Изображение"
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             Layout.fillWidth: true
             visible: App.dock.present && App.dock.isPicture
 
@@ -752,7 +748,7 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             Layout.fillWidth: true
             visible: App.dock.present
 

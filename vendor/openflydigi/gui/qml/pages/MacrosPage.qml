@@ -144,11 +144,11 @@ Kirigami.ScrollablePage {
                 spacing: 0
                 Layout.fillWidth: true
 
-                FormCard.FormHeader {
+                ConsoleHeader {
                     title: macroEntry.label
                 }
 
-                FormCard.FormCard {
+                ConsoleCard {
                     enabled: !page.blocked
 
                     FormComboBox {
@@ -257,7 +257,7 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             Layout.topMargin: Kirigami.Units.largeSpacing
             visible: App.profile.loaded
 

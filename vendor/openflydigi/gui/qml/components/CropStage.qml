@@ -228,7 +228,7 @@ ColumnLayout {
             Layout.minimumWidth: Kirigami.Units.gridUnit * 5
         }
 
-        Controls.Slider {
+        ConsoleSlider {
             id: zoomSlider
             objectName: root.prefix + "Zoom"
             Layout.fillWidth: true

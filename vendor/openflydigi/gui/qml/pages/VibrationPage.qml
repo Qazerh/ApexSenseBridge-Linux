@@ -32,7 +32,7 @@ Kirigami.ScrollablePage {
             explanation: "Pick a profile on the Controller page."
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             visible: App.profile.loaded
 
             ModelSwitch {
@@ -44,7 +44,7 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             visible: App.profile.loaded
             title: "Left grip"
         }
@@ -56,7 +56,7 @@ Kirigami.ScrollablePage {
             sideName: "left"
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             visible: App.profile.loaded
             title: "Right grip"
         }
@@ -68,7 +68,7 @@ Kirigami.ScrollablePage {
             sideName: "right"
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             visible: App.profile.loaded
             Layout.topMargin: Kirigami.Units.largeSpacing
 

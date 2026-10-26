@@ -58,7 +58,7 @@ FormCard.AbstractFormDelegate {
             }
         }
 
-        Controls.Slider {
+        ConsoleSlider {
             objectName: root.objectName + "Slider"
             from: root.from
             to: root.to

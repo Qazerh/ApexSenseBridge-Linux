@@ -38,3 +38,31 @@ Redistribution notices for system libraries are copied from Debian packages.
 The root GPL license, vendor licenses and source revision list are included in
 the image. Corresponding application source is the repository revision used to
 build the artifact; bundled Debian library source is available from Debian.
+
+## Rendered UI regression checks
+
+Every build also runs `check-ui.sh` against the **bundled** Python/Qt/QML runtime.
+It renders all 16 sections at 1060×740, 1280×880 and 1600×1000 logical pixels,
+at 100% and 150% scaling. A simulated controller and dock are the only devices
+visible to the tests; user configuration is isolated in a temporary directory.
+
+Checks reject controls outside card bounds, zero-width switch hit areas,
+overlapping labels, clipped descriptions and thumbs outside their tracks.
+Pointer clicks on both the switch and the whole row, keyboard activation and
+subsequent model updates are exercised. These checks reproduce the old Basic
+style switch regression, rather than merely checking that a page loads.
+
+PNG screenshots and JSON results are written to `dist/visual-tests/`. GitHub
+Actions uploads these as `visual-layout-regressions`, including on test failure.
+An AppImage release is blocked if any layout/interaction assertion fails.
+
+To run against host Qt during development:
+
+    QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software python3 gui/tests/test_visual_layout.py
+
+For the exact shipped runtime (after building the Docker image):
+
+    ./packaging/appimage/check-ui.sh
+
+Screenshots are diagnostic artifacts, not pixel-exact golden images: font
+rasterization differences do not hide geometry or input regressions.

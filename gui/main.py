@@ -275,6 +275,10 @@ def smoke_test(app):
 
 
 def main():
+    if '--visual-test' in sys.argv:
+        import runpy
+        runpy.run_path(str(Path(__file__).parent/'tests/test_visual_layout.py'), run_name='__main__')
+        return 0
     if '--version' in sys.argv:
         print('ApexSenseBridge Linux GUI ' + VERSION)
         return 0

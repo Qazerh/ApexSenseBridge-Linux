@@ -20,7 +20,7 @@ ColumnLayout {
 
     spacing: 0
 
-    FormCard.FormCard {
+    ConsoleCard {
         // A stick bound to keyboard or mouse is not running a curve at all, and
         // the pad stores a sentinel where the dead zone would be. Offering the
         // controls anyway would write into a block nothing is reading.
@@ -35,7 +35,7 @@ ColumnLayout {
         }
     }
 
-    FormCard.FormCard {
+    ConsoleCard {
         visible: root.side.isStick
 
         FormComboBox {
@@ -158,7 +158,7 @@ ColumnLayout {
         }
     }
 
-    FormCard.FormCard {
+    ConsoleCard {
         visible: root.side.isStick
         Layout.topMargin: Kirigami.Units.largeSpacing
 

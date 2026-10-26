@@ -29,6 +29,8 @@ Controls.Pane {
         spacing: 8
         Kirigami.InlineMessage {
             Layout.fillWidth: true
+            Layout.maximumWidth: Math.max(0, Math.min(880, root.width - 32))
+            Layout.alignment: Qt.AlignHCenter
             type: Kirigami.MessageType.Error
             text: App.device.error
             visible: text !== ""
@@ -36,9 +38,11 @@ Controls.Pane {
         }
         Controls.Label {
             Layout.fillWidth: true
-            Layout.leftMargin: 14
-            text: App.device.status
+            Layout.maximumWidth: Math.max(0, Math.min(880, root.width - 32))
+            Layout.alignment: Qt.AlignHCenter
             color: "#AAB4CC"
+            font.pixelSize: 12
+            text: App.device.status
             visible: text !== ""
             wrapMode: Text.Wrap
         }

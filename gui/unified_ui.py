@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (QApplication,QWidget,QHBoxLayout,QVBoxLayout,QSta
  QHeaderView,QScrollArea,QMessageBox)
 from theme import STYLE,BASE,label,card,art,update_badge
 from device_session import DeviceSession
+from runtime import VERSION
 
 SECTIONS=[
  ('Обзор',None),('Мост DualSense',None),
@@ -112,7 +113,7 @@ class Workspace(QObject):
         self.nav=QListWidget()
         for name,_ in SECTIONS:self.nav.addItem(name)
         side.addWidget(self.nav,1)
-        side.addWidget(label('Linux v9 · Flydigi + DualSense','muted'))
+        side.addWidget(label(f'v{VERSION} · Flydigi + DualSense','muted'))
         shell.addWidget(sidebar)
         content=QVBoxLayout()
         content.setContentsMargins(28,24,28,20)

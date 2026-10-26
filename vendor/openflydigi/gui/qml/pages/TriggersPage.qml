@@ -41,7 +41,7 @@ Kirigami.ScrollablePage {
         // it. Trigger *haptics* do exist here -- they come out of the force
         // triggers above, via the effect vocabulary, not a separate motor.
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             visible: App.profile.loaded
             title: "Left trigger"
         }
@@ -53,7 +53,7 @@ Kirigami.ScrollablePage {
             sideName: "left"
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             visible: App.profile.loaded
             title: "Right trigger"
         }
@@ -65,7 +65,7 @@ Kirigami.ScrollablePage {
             sideName: "right"
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             visible: App.profile.loaded
             Layout.topMargin: Kirigami.Units.largeSpacing
 

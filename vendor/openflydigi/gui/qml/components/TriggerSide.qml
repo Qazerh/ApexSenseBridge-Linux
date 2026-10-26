@@ -11,7 +11,7 @@ import QtQuick.Layouts
 import org.kde.kirigamiaddons.formcard as FormCard
 import Apex5
 
-FormCard.FormCard {
+ConsoleCard {
     id: root
 
     required property var side

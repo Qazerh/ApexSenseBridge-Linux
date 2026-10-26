@@ -37,7 +37,7 @@ Kirigami.ScrollablePage {
             explanation: "Pick a profile on the Controller page."
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             visible: App.profile.loaded
             title: "Левый стик"
         }
@@ -49,7 +49,7 @@ Kirigami.ScrollablePage {
             sideName: "left"
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             visible: App.profile.loaded
             title: "Правый стик"
         }
@@ -61,7 +61,7 @@ Kirigami.ScrollablePage {
             sideName: "right"
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             visible: App.profile.loaded
             Layout.topMargin: Kirigami.Units.largeSpacing
 

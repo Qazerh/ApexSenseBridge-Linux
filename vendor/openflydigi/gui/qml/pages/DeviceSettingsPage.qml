@@ -44,12 +44,12 @@ Kirigami.ScrollablePage {
                   + "button on the pad — it leaves the USB bus entirely when it sleeps."
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             title: "On the pad"
             visible: App.settings.loaded
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             visible: App.settings.loaded
 
             ModelSwitch {
@@ -109,12 +109,12 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             title: "Стики"
             visible: App.settings.loaded
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             visible: App.settings.loaded
 
             ModelSwitch {
@@ -185,12 +185,12 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             title: "Reported"
             visible: App.settings.loaded
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             visible: App.settings.loaded
 
             FormCard.FormTextDelegate {
@@ -223,7 +223,7 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             visible: App.settings.loaded
 
             FormCard.FormTextDelegate {

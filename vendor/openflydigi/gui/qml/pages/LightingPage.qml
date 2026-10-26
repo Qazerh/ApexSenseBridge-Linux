@@ -83,7 +83,7 @@ Kirigami.ScrollablePage {
             explanation: "Press Reload from pad, or press a button to wake the controller."
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             visible: App.lighting.loaded
 
             FormComboBox {
@@ -141,12 +141,12 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             visible: App.lighting.loaded && App.lighting.colours.allowed > 0
             title: "Colours"
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             visible: App.lighting.loaded && App.lighting.colours.allowed > 0
 
             // The swatches sit side by side in one delegate rather than being
@@ -241,7 +241,7 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             visible: App.lighting.loaded
             Layout.topMargin: Kirigami.Units.largeSpacing
 

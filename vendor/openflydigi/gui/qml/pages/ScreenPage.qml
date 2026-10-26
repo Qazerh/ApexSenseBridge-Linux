@@ -59,11 +59,11 @@ Kirigami.ScrollablePage {
     ColumnLayout {
         spacing: 0
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             title: "Изображение"
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             // The preview is the encoded frame read back, not a scaled copy of
             // the file, so what is shown is what the pad will hold -- crop,
             // letterboxing and the 16-bit colour included.
@@ -228,11 +228,11 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             title: "While the pad is idle"
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             ModelSwitch {
                 objectName: "screenAlwaysOn"
                 text: "Keep the picture on screen"

@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     squashfs-tools patchelf fonts-dejavu-core \
     python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtwidgets \
     python3-pyside6.qtnetwork python3-pyside6.qtqml python3-pyside6.qtquick \
-    python3-pyside6.qtquickwidgets python3-pyside6.qtquickcontrols2 \
+    python3-pyside6.qtquickwidgets python3-pyside6.qtquickcontrols2 python3-pyside6.qttest \
     qml6-module-qtquick qml6-module-qtquick-window qml6-module-qtquick-layouts \
     qml6-module-qtquick-controls qml6-module-qtquick-templates \
     qml6-module-qtquick-dialogs qml6-module-qtquick-shapes qml6-module-qtqml-workerscript \

@@ -37,11 +37,11 @@ Kirigami.ScrollablePage {
     ColumnLayout {
         spacing: 0
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             title: "Устройство"
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             FormCard.FormTextDelegate {
                 objectName: "connectionRow"
                 text: "Подключение"
@@ -71,11 +71,11 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             title: "Профили"
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             Repeater {
                 model: App.profile.slots
 
@@ -147,11 +147,11 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             title: "Выбранный профиль"
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             FormCard.FormTextFieldDelegate {
                 id: nameField
 
@@ -278,7 +278,7 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             Layout.topMargin: Kirigami.Units.largeSpacing
 
             FormCard.FormButtonDelegate {
@@ -298,7 +298,7 @@ Kirigami.ScrollablePage {
 
         // A device setting, not a profile one -- it survives switching profiles
         // and is not part of any of them.
-        FormCard.FormHeader {
+        ConsoleHeader {
             visible: App.device.thirdPartyAvailable
             title: "Other software"
         }
@@ -318,7 +318,7 @@ Kirigami.ScrollablePage {
                   + "DualSense with working motion and dead sticks and buttons."
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             // Hidden rather than disabled below the firmware this needs, which
             // is what Space Station does: a switch that cannot work is worse
             // than no switch.

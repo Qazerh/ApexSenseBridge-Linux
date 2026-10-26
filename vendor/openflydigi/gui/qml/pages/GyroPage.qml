@@ -36,7 +36,7 @@ Kirigami.ScrollablePage {
             explanation: "Pick a profile on the Controller page."
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             // A profile set up in Space Station to move the host's pointer. The
             // byte is real and this app cannot honour it, so it says so instead
             // of showing Off and quietly meaning it.
@@ -53,7 +53,7 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             visible: App.profile.loaded
 
             FormComboBox {
@@ -95,7 +95,7 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             visible: App.profile.loaded && App.profile.motion.enabled
             Layout.topMargin: Kirigami.Units.largeSpacing
 
@@ -165,7 +165,7 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             visible: App.profile.loaded && App.profile.motion.enabled
             Layout.topMargin: Kirigami.Units.largeSpacing
 
@@ -197,7 +197,7 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             visible: App.profile.loaded
             Layout.topMargin: Kirigami.Units.largeSpacing
 

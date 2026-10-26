@@ -7,7 +7,7 @@
 import QtQuick
 import org.kde.kirigamiaddons.formcard as FormCard
 
-FormCard.FormCard {
+ConsoleCard {
     id: root
 
     // The per-side model object for this grip.

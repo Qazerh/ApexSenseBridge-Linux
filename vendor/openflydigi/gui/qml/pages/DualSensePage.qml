@@ -67,11 +67,11 @@ Kirigami.ScrollablePage {
                   + "sticks and buttons. Turn it off on the Controller page."
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             title: "DualSense mode"
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             ModelSwitch {
                 objectName: "dsModeToggle"
                 text: "Present the pad as a DualSense"
@@ -127,12 +127,12 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             visible: App.dsmode.running || App.dsmode.busy
             title: "Running"
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             visible: App.dsmode.running || App.dsmode.busy
 
             FormCard.FormTextDelegate {
@@ -194,11 +194,11 @@ Kirigami.ScrollablePage {
             }
         }
 
-        FormCard.FormHeader {
+        ConsoleHeader {
             title: "In the game"
         }
 
-        FormCard.FormCard {
+        ConsoleCard {
             FormCard.FormTextDelegate {
                 objectName: "dsLaunchOption"
                 text: "Steam launch options"
