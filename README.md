@@ -1,11 +1,12 @@
 # ApexSenseBridge for Linux
 
-[Download current AppImage](https://github.com/Qazerh/ApexSenseBridge-Linux/releases/download/preview/ApexSenseBridge-Linux-x86_64.AppImage) · [Preview release and checksums](https://github.com/Qazerh/ApexSenseBridge-Linux/releases/tag/preview)
+[Stable releases](https://github.com/Qazerh/ApexSenseBridge-Linux/releases/latest) · [Download preview AppImage](https://github.com/Qazerh/ApexSenseBridge-Linux/releases/download/preview/ApexSenseBridge-Linux-x86_64.AppImage) · [Preview release and checksums](https://github.com/Qazerh/ApexSenseBridge-Linux/releases/tag/preview)
 
 ## Unified Linux GUI and AppImage (this fork)
 
 This fork adds one desktop application combining the ApexSenseBridge Linux engine
-with OpenFlydigi configuration models and pages. It preserves the upstream CLI,
+with [OpenFlydigi](https://github.com/mkaliaha/openflydigi) configuration models
+and pages. It preserves the upstream CLI,
 protocol implementation and Git history.
 
 - One window and sidebar for the bridge, profiles, remapping, macros, sticks,
@@ -16,6 +17,26 @@ protocol implementation and Git history.
   Built against Debian 13: **glibc 2.41 or newer** is required. Older distributions
   are not currently supported by this AppImage.
 
+### Projects and credits
+
+This application combines work from these independent community projects:
+
+- [ApexSenseBridge-Linux](https://github.com/RafaelDiasCampos/ApexSenseBridge-Linux)
+  supplies the native Linux bridge, virtual DualSense and game-feedback handling.
+- [OpenFlydigi](https://github.com/mkaliaha/openflydigi) by Mikalai Kaliaha supplies
+  the Flydigi configuration backend, device models and QML settings pages,
+  adapted here into the unified window. Its source is included in
+  [vendor/openflydigi](vendor/openflydigi), with the original
+  [documentation](vendor/openflydigi/README.md) and
+  [per-file license information](vendor/openflydigi/LICENSE).
+  See also its included [protocol documentation](vendor/openflydigi/PROTOCOL.md).
+- [ApexSenseBridge](https://github.com/ReynArts/ApexSenseBridge) supplies the
+  original controller protocols, artwork, game catalogue and visual reference.
+
+Exact imported revisions are recorded in [SOURCE-REVISIONS.txt](SOURCE-REVISIONS.txt).
+Original licenses and attribution are retained; see
+[third-party notices](THIRD_PARTY_NOTICES.md).
+
 ### Build the AppImage
 
 Docker is the only host build dependency:
@@ -25,7 +46,8 @@ Docker is the only host build dependency:
 ```
 
 The build compiles and tests the engine, tests the unified UI using a simulated
-controller, checks all QML pages from the packaged runtime and produces
+controller, checks rendered layouts and local device artwork across 96 UI
+scenarios at two display scales, and produces
 `dist/ApexSenseBridge-Linux-x86_64.AppImage` plus `dist/SHA256SUMS`.
 The GitHub Actions **Unified GUI AppImage** workflow does the same. Every successful
 `main` build updates the downloadable `preview` Release. Tags matching `v*` create
@@ -58,7 +80,8 @@ and [source provenance](SOURCE-REVISIONS.txt). Original project documentation fo
 
 A foreground Linux bridge that makes a Flydigi Apex controller appear as a USB
 DualSense and translates game feedback back to the physical controller. Start
-it before playing and leave it running. There is no GUI or game detection.
+it before playing and leave it running. The native CLI runs independently of
+this fork's unified GUI; it does not detect games automatically.
 
 Based on **[ReynArts/ApexSenseBridge](https://github.com/ReynArts/ApexSenseBridge)**,
 starting from upstream commit [`1adf78d`](https://github.com/ReynArts/ApexSenseBridge/commit/1adf78dacbfcc6eb6f2f41ae7cc8060962e148b6).
@@ -106,7 +129,7 @@ compiler, CMake 3.20+, Make or Ninja, and Python 3 for the test suite and Steam
 launcher. The native bridge needs only the C/C++ system runtime.
 
 ```sh
-git clone https://github.com/RafaelDiasCampos/ApexSenseBridge-Linux.git
+git clone https://github.com/Qazerh/ApexSenseBridge-Linux.git
 cd ApexSenseBridge-Linux
 make
 make test
@@ -264,13 +287,14 @@ still be listed but appear unresponsive because its gamepad events are grabbed.
 Direct HIDAPI consumers can bypass that isolation. Use `--device /dev/hidrawN`
 when several supported controllers are connected.
 
-## Scope and differences from the original project
+## Native bridge scope and differences from the original project
 
 This Linux port does **not** implement the original Windows tray/GUI, game
 process detection, automatic game profiles, Playnite integration, Windows
 installer/driver management.
-The checkout contains only the Linux runtime, tests, diagnostics, setup files
-and documentation. Upstream history and attribution remain available in Git.
+This fork provides its own unified Linux GUI with OpenFlydigi settings pages;
+the limitations below describe the native game bridge. Upstream history and
+attribution remain available in Git.
 
 Native DualSense **PCM/audio haptics are not implemented**: the virtual UHID
 controller has no USB audio endpoint. Standard motor rumble and supported
