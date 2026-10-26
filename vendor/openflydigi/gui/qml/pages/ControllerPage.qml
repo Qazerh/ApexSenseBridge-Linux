@@ -42,6 +42,25 @@ Kirigami.ScrollablePage {
         }
 
         ConsoleCard {
+            FormCard.AbstractFormDelegate {
+                background: null
+                contentItem: RowLayout {
+                    spacing: 20
+                    DeviceArtwork {
+                        deviceModel: App.devices.currentCode
+                        Layout.preferredWidth: 156
+                        Layout.preferredHeight: 108
+                    }
+                    Controls.Label {
+                        text: "Профили контроллера"
+                        font.pixelSize: 18
+                        font.bold: true
+                        Layout.fillWidth: true
+                        wrapMode: Text.Wrap
+                    }
+                }
+            }
+            FormCard.FormDelegateSeparator {}
             FormCard.FormTextDelegate {
                 objectName: "connectionRow"
                 text: "Подключение"

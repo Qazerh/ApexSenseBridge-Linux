@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Test release publishing rules
+        run: python3 scripts/test_publish_appimage.py
       - name: Build AppImage and validate engine, GUI and rendered layouts
         run: ./packaging/appimage/build.sh
       - uses: actions/upload-artifact@v4
@@ -30,12 +32,16 @@ jobs:
           path: dist/visual-tests/
           if-no-files-found: warn
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/main' && github.event_name != 'pull_request')
     needs: appimage
+    concurrency:
+      group: publish-${{ github.ref }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: ApexSenseBridge-Linux-x86_64-AppImage
@@ -43,4 +49,4 @@ jobs:
       - name: Publish release assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --generate-notes
+        run: ./scripts/publish-appimage.sh dist

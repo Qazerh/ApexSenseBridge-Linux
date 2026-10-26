@@ -11,5 +11,5 @@
   <url type="bugtracker">https://github.com/Qazerh/ApexSenseBridge-Linux/issues</url>
   <provides><binary>apexsense</binary></provides>
   <content_rating type="oars-1.1"/>
-  <releases><release version="0.1.1" date="2026-10-26"/><release version="0.1.0" date="2026-10-21"/></releases>
+  <releases><release version="0.1.2" date="2026-10-26"/><release version="0.1.1" date="2026-10-26"/><release version="0.1.0" date="2026-10-21"/></releases>
 </component>

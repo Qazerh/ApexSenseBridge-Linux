@@ -1,0 +1,7 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120">
+  <path d="M30 47 Q30 27 50 27 H110 Q130 27 130 47 L142 87 Q146 105 129 103 L107 84 H53 L31 103 Q14 105 18 87Z" fill="#DBE5F5" stroke="#8DB7FF" stroke-width="3"/>
+  <path d="M41 51 H65 M53 39 V63" stroke="#25314A" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="107" cy="45" r="5" fill="#1E6FE8"/><circle cx="119" cy="57" r="5" fill="#1E6FE8"/>
+  <circle cx="66" cy="74" r="8" fill="#25314A"/><circle cx="94" cy="74" r="8" fill="#25314A"/>
+</svg>

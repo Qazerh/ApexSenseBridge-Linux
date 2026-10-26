@@ -1,5 +1,7 @@
 # ApexSenseBridge for Linux
 
+[Download current AppImage](https://github.com/Qazerh/ApexSenseBridge-Linux/releases/download/preview/ApexSenseBridge-Linux-x86_64.AppImage) · [Preview release and checksums](https://github.com/Qazerh/ApexSenseBridge-Linux/releases/tag/preview)
+
 ## Unified Linux GUI and AppImage (this fork)
 
 This fork adds one desktop application combining the ApexSenseBridge Linux engine
@@ -25,8 +27,9 @@ Docker is the only host build dependency:
 The build compiles and tests the engine, tests the unified UI using a simulated
 controller, checks all QML pages from the packaged runtime and produces
 `dist/ApexSenseBridge-Linux-x86_64.AppImage` plus `dist/SHA256SUMS`.
-The GitHub Actions **Unified GUI AppImage** workflow does the same. Tags matching
-`v*` publish the AppImage as a GitHub Release.
+The GitHub Actions **Unified GUI AppImage** workflow does the same. Every successful
+`main` build updates the downloadable `preview` Release. Tags matching `v*` create
+versioned GitHub Releases. Publishing starts only after all tests pass.
 
 ### Run
 

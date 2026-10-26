@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     qml6-module-qtquick-dialogs qml6-module-qtquick-shapes qml6-module-qtqml-workerscript \
     qml6-module-qt-labs-platform qml6-module-org-kde-kirigami \
     qml6-module-org-kde-kirigamiaddons-formcard \
-    qml6-module-org-kde-kirigamiaddons-components qt6-wayland \
+    qml6-module-org-kde-kirigamiaddons-components qt6-wayland qt6-svg-plugins \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY CMakeLists.txt LICENSE THIRD_PARTY_NOTICES.md /src/

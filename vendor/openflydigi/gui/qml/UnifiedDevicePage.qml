@@ -36,16 +36,6 @@ Controls.Pane {
             visible: text !== ""
             showCloseButton: true
         }
-        Controls.Label {
-            Layout.fillWidth: true
-            Layout.maximumWidth: Math.max(0, Math.min(880, root.width - 32))
-            Layout.alignment: Qt.AlignHCenter
-            color: "#AAB4CC"
-            font.pixelSize: 12
-            text: App.device.status
-            visible: text !== ""
-            wrapMode: Text.Wrap
-        }
         Loader {
             id: loader
             objectName: "configurationPage"

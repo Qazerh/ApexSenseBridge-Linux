@@ -93,6 +93,7 @@ class Workspace(QObject):
         self.pending=None
         self.session=DeviceSession(w)
         self.session.changed.connect(w.refresh)
+        self.session.statusMessage.connect(lambda message: w.log.appendPlainText(message))
         self.pages={}
         root=QWidget()
         root.setObjectName('shell')

@@ -9,6 +9,7 @@ SOURCE = Path(__file__).resolve().parent.parent / 'vendor/openflydigi'
 
 class DeviceSession(QWidget):
     changed = Signal()
+    statusMessage = Signal(str)
 
     def __init__(self,owner):
         super().__init__(owner)
@@ -34,13 +35,19 @@ class DeviceSession(QWidget):
         if not os.environ.get('APEXSENSE_BUNDLED'):
             for path in ('/usr/lib/qt6/qml','/usr/lib64/qt6/qml','/usr/lib/qml'):
                 if Path(path).is_dir():engine.addImportPath(path)
+        engine.rootContext().setContextProperty('apexAssetBase', QUrl.fromLocalFile(str(Path(__file__).parent/'assets')+'/').toString())
         i18n.install(engine)
         self.quick.setSource(QUrl.fromLocalFile(str(SOURCE/'gui/qml/UnifiedDevicePage.qml')))
         if self.quick.status()==QQuickWidget.Error:
             raise RuntimeError('\n'.join(error.toString() for error in self.quick.errors()))
         self.backend=engine.singletonInstance(qmlTypeId('Apex5',1,0,'App'))
         self.backend.device.connectedChanged.connect(self.changed)
+        self.backend.device.statusChanged.connect(self.forward_status)
         self.layout.addWidget(self.quick)
+
+    def forward_status(self):
+        if self.backend.device.status:
+            self.statusMessage.emit(self.backend.device.status)
 
     def resume(self,poll=True):
         if self.active:return

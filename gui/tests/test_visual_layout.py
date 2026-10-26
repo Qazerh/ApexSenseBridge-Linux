@@ -62,7 +62,7 @@ def evaluate(script):
 
 
 INSPECT = r"""(function() {
-    var root=this, failures=[], controls=0, switches=0, target=null;
+    var root=this, failures=[], controls=0, switches=0, target=null, artwork=0;
     function walk(item,fn) {
         fn(item);
         var children=item.children || [];
@@ -78,6 +78,12 @@ INSPECT = r"""(function() {
     }
     walk(root,function(item) {
         if(!item.visible)return;
+        if(item.text==='Profile 1 read')failures.push('Stale backend status is visible in the page header');
+        if(item.objectName==='deviceArtwork') {
+            artwork++;
+            if(item.status!==1 || item.width<=0 || item.height<=0)
+                failures.push('Device artwork did not load: '+item.source);
+        }
         if(item.contentItem!==undefined && item.padding!==undefined) {
             var card=cardFor(item);
             if(card) {
@@ -119,7 +125,7 @@ INSPECT = r"""(function() {
             }
         }
     });
-    return JSON.stringify({controls:controls,switches:switches,errors:failures,target:target});
+    return JSON.stringify({controls:controls,switches:switches,artwork:artwork,errors:failures,target:target});
 }).call(this)"""
 
 
@@ -160,6 +166,24 @@ try:
     session.backend.screen.open(QUrl.fromLocalFile(str(picture)))
     wait_for(lambda:session.backend.dock.hasImage and bool(session.backend.screen.previewSource) and not session.backend.screen.encoding)
 
+    # Decode every photo/fallback using the shipped image plugins, independent of the host icon theme.
+    from device_session import SOURCE
+    url=QUrl.fromLocalFile(str(SOURCE/'gui/qml/components/DeviceArtwork.qml')).toString()
+    artwork_check="""(function() {
+        var component=Qt.createComponent(%s);
+        if(component.status!==1)return component.errorString();
+        var models=['k4','k5','k6p','unknown'];
+        for(var i=0;i<models.length;i++) {
+            var image=component.createObject(this,{deviceModel:models[i],visible:false,width:100,height:100});
+            if(!image || image.status!==1)return 'Cannot decode artwork for '+models[i];
+            image.destroy();
+        }
+        var dock=component.createObject(this,{deviceKind:'dock',visible:false,width:100,height:100});
+        if(!dock || dock.status!==1)return 'Cannot decode dock artwork';
+        dock.destroy();return '';
+    }).call(this)""" % json.dumps(url)
+    assert evaluate(artwork_check)=='',evaluate(artwork_check)
+
     for width,height in [(1060,740),(1280,880),(1600,1000)]:
         window.resize(width,height)
         for index,(title,filename) in enumerate(SECTIONS):
@@ -169,10 +193,18 @@ try:
             try:
                 window.workspace.nav.setCurrentRow(index)
                 settle()
+                if filename and index not in (2,13):
+                    wait_for(lambda:session.backend.profile.loaded)
+                    settle(50)
+                session.backend.device.status='Profile 1 read'
+                assert 'Profile 1 read' in window.log.toPlainText(), 'Backend status was not forwarded to the journal'
                 if filename:
                     info=inspect_layout()
                     case['controls']=info['controls']
                     case['switches']=info['switches']
+                    case['artwork']=info['artwork']
+                    if index==2:assert info['artwork']>=2,'Device photos/icons are missing'
+                    if index==3:assert info['artwork']>=1,'Controller artwork is missing from profiles'
                     assert not info['errors'], '; '.join(info['errors'][:6])
                     if index==13:
                         assert case['switches']>=4,'Dock fixture did not expose all switches'

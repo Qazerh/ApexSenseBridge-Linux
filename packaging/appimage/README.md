@@ -66,3 +66,15 @@ For the exact shipped runtime (after building the Docker image):
 
 Screenshots are diagnostic artifacts, not pixel-exact golden images: font
 rasterization differences do not hide geometry or input regressions.
+
+Successful `main` builds publish or update the `preview` GitHub Release, including
+AppImage and checksums. Superseded builds cannot roll the preview back. Version
+tags (`v*`) create versioned releases; existing version tags are never moved.
+Release publishing is exercised with a fake GitHub CLI before the container
+build (`python3 scripts/test_publish_appimage.py`), including update, stale-run,
+failed-upload, checksum and pull-request cases. No test publishes real releases.
+
+Device photos and fallback SVG artwork are local app resources, independent of
+the host icon theme. Visual checks decode every bundled photo/SVG and check the
+rendered device/profile images. Routine backend status is journal-only and is
+asserted absent from the shared page header.
