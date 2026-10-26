@@ -8,5 +8,5 @@ https://github.com/mkaliaha/openflydigi.git
 
 Windows artwork/catalogue/theme
 https://github.com/ReynArts/ApexSenseBridge.git
-87dd495723a5f0be3c777d7a01dfccc4f2b0ce72
+fc3c87e3fc7fa4d318634a6445c2faeb33e467ff
 
